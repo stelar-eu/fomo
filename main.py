@@ -19,20 +19,17 @@ argparse.add_argument("-t", "--tau", type=float, help="Threshold for the cluster
 argparse.add_argument("--index", type=bool, help="Flag to indicate if the input file has an index column", default=False)
 argparse.add_argument("--header", type=bool, help="Flag to indicate if the input file has a header", default=False)
 
-def update_l2(newvals: np.ndarray, Dsq: np.ndarray):
+def update_l2(newvals: np.ndarray, D: np.ndarray):
     new_diffs = newvals - newvals[:, None]
-    Dsq += new_diffs**2
-    return Dsq
+    D += new_diffs**2
 
-def update_l1(newvals: np.ndarray, Dsq: np.ndarray):
+def update_l1(newvals: np.ndarray, D: np.ndarray):
     new_diffs = newvals - newvals[:, None]
-    Dsq += np.abs(new_diffs)
-    return Dsq
+    D += np.abs(new_diffs)
 
-def update_cheb(newvals: np.ndarray, Dsq: np.ndarray):
+def update_cheb(newvals: np.ndarray, D: np.ndarray):
     new_diffs = newvals - newvals[:, None]
-    Dsq = np.maximum(Dsq, np.abs(new_diffs))
-    return Dsq
+    D = np.maximum(D, np.abs(new_diffs))
 
 distfuncs = {
     'euclidean': update_l2,
@@ -89,9 +86,10 @@ def main(input_path:str, n_streams:int, duration:int, tau:float,
 
     duration, n_streams = data.shape
 
+    D = np.zeros((n_streams, n_streams))
+
     # Initialize root node of the tree (the initial cluster) and set
-    root = OdacCluster(ids=np.arange(n_streams), names=names, tau=tau,
-                       update_dist=distfuncs[metric])
+    root = OdacCluster(ids=np.arange(n_streams), names=names, tau=tau, D=D)
 
     T = 0
 
@@ -100,7 +98,6 @@ def main(input_path:str, n_streams:int, duration:int, tau:float,
         # Get all positive updates
         arrivals = data[T]
         update_ids = np.nonzero(arrivals)[0]
-        update_vals = arrivals[update_ids]
 
         if len(update_ids) == 0:
             T += 1
@@ -108,21 +105,28 @@ def main(input_path:str, n_streams:int, duration:int, tau:float,
 
         logging.info(f"T={T} - Number of updates: {len(update_ids)}")
 
+        # Update the distance matrix
+        distfuncs[metric](arrivals, root.D)
+
         # Update the clusters
         for c in root.get_leaves():
             if c.is_singleton():
                 continue
 
-            c.update(update_ids, update_vals)
+            # Update the statistics of the cluster
+            updated = c.update_stats(arrivals)
+            if not updated:
+                continue
 
             # Check if the cluster needs to split or merge
-            actions = []
-            if c.check_split():
-                actions.append("split")
+            action = None
             if c.check_merge():
-                actions.append("merge")
-            if len(actions) > 0:
-                logging.info(f"T={T} - New tree after {' + '.join(actions)} of cluster {c.identifier}:")
+                action = "merge"
+            elif c.check_split():
+                action = "split"
+
+            if action:
+                logging.info(f"T={T} - New tree after {action} of cluster {c.identifier}:")
                 root.print_tree()
 
         # Increment time
@@ -138,8 +142,8 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
         input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly.csv"
         n_streams = 100
-        duration = None
-        tau = 3
+        duration = 500
+        tau = 1
         metric = 'manhattan'
         index = True
         header = True

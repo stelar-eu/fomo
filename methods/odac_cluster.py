@@ -10,15 +10,15 @@ from typing import List
 class OdacCluster(NodeMixin):
     # Input attributes
     ids: np.ndarray # shape: (n, )
-    names: np.ndarray
-    update_dist: callable
+    names: np.ndarray # human-readable names
+    D: np.ndarray # distance matrix    
 
     # Cluster attributes
     identifier: int = field(default_factory=count().__next__)
     is_active: bool = True
     local_ids: dict = None # shape: (n, )
 
-    # Diameter statistics attributes
+    # Distance statistics attributes
     d0: float = None
     d0_ids: tuple = None
     d1: float = None
@@ -34,21 +34,14 @@ class OdacCluster(NodeMixin):
     Rsq: float = None
 
     tau: float = 1
-    confidence_level: float = 0.9
+    confidence_level: float = 0.95
     n_min: int = 5
 
     # Stream attributes
     n_updates: int = 0
 
-    # Distance attributes
-    Dsq: np.ndarray = None # distance matrix    
-
     def __post_init__(self):
-        n = len(self.ids)
-
-        assert n > 0
-
-        self.Dsq = np.zeros((n, n))
+        assert len(self.ids) > 0
         self.local_ids = {idx: i for i, idx in enumerate(self.ids)}
 
     def __str__(self):
@@ -92,36 +85,40 @@ class OdacCluster(NodeMixin):
     def deactivate(self):
         """Deactivate the cluster"""
         self.is_active = False
-        self.Dsq = None
 
+    def local_distances(self):
+        """Get the local distances"""
+        return self.D[np.ix_(self.ids, self.ids)]
+
+    """Get the different diameter statistics of the cluster"""
     def update_diameter_coefficients(self):
-        """Initialize the diameter"""
-        dshape = self.Dsq.shape
+        Dl = self.local_distances() # shape: (n, n)
+        dshape = Dl.shape
 
         # Make sure the diagonal does not influence the statistics
-        np.fill_diagonal(self.Dsq, np.nan)
+        np.fill_diagonal(Dl, np.nan)
 
         # Get the minimum distance
-        d0_idflat = np.nanargmin(self.Dsq)
+        d0_idflat = np.nanargmin(Dl)
         self.d0_ids = np.unravel_index(d0_idflat, dshape)
-        self.d0 = self.Dsq[self.d0_ids]
+        self.d0 = Dl[self.d0_ids]
 
         # Get the maximum distance
-        d1_idflat = np.nanargmax(self.Dsq)
+        d1_idflat = np.nanargmax(Dl)
         self.d1_ids = np.unravel_index(d1_idflat, dshape)
-        self.d1 = self.Dsq[self.d1_ids]
+        self.d1 = Dl[self.d1_ids]
 
         # Get the 2nd maximum distance
-        self.Dsq[self.d1_ids] = -np.inf
-        d2_idflat = np.nanargmax(self.Dsq)
+        Dl[self.d1_ids] = -np.inf
+        d2_idflat = np.nanargmax(Dl)
         self.d2_ids = np.unravel_index(d2_idflat, dshape)
-        self.d2 = self.Dsq[self.d2_ids]
-        self.Dsq[self.d1_ids] = self.d1
+        self.d2 = Dl[self.d2_ids]
+        Dl[self.d1_ids] = self.d1
 
         self.delta = self.d1 - self.d2
 
         # Get the average distance
-        self.davg = np.nanmean(self.Dsq)
+        self.davg = np.nanmean(Dl)
 
     def update_range(self,vals):
         """Update the range statistic"""
@@ -132,35 +129,22 @@ class OdacCluster(NodeMixin):
         """Update the Hoeffding bound on the error of the diameter statistics"""
         self.hoeffding_bound = np.sqrt(self.Rsq * np.log(1 / self.confidence_level) / (2 * self.n_updates))
 
-    def update(self, ids:np.ndarray, vals:np.ndarray):
+    def update_stats(self, arrivals:np.ndarray):
         """Update the cluster with multiple observations"""
-        # Check input
-        assert len(ids) == len(vals)
-        assert len(ids) > 0
-
         # Cut to ids and values that are in this cluster
-        tmp = np.isin(ids, self.ids)
-        ids = ids[tmp]
-        vals = vals[tmp]
+        local_arrivals = arrivals[self.ids]
 
-        if len(ids) == 0:
-            return
+        if len(local_arrivals) == 0:
+            return False
         
         self.n_updates += 1
 
-        # Update distance matrix
-        # Get the local indices of the updated observations through idx
-        update_ids = [self.local_ids[idx] for idx in ids]
-
-        # Update distance matrix
-        update_vals = np.zeros(len(self.ids))
-        update_vals[update_ids] = vals
-        self.Dsq = self.update_dist(update_vals, self.Dsq)
-
         # Update diameter statistics
-        self.update_range(vals)
+        self.update_range(local_arrivals)
         self.update_hoeffding()
         self.update_diameter_coefficients()
+
+        return True
 
     def check_split(self):
         """Test if the cluster should be split, if so, do it."""
@@ -185,6 +169,7 @@ class OdacCluster(NodeMixin):
     
     def split(self):
         """Split the cluster using d1_idx as pivots"""
+        Dl = self.local_distances()
 
         # Get the pivot indices
         x1, y1 = self.d1_ids
@@ -192,16 +177,12 @@ class OdacCluster(NodeMixin):
         logging.info(f"Splitting cluster {self.identifier} with {self.n_updates} observations and pivot indices {self.ids[x1]} and {self.ids[y1]}")
 
         # Assign the observations to the new clusters based on the pivot indices
-        c1_ids = self.ids[self.Dsq[x1] < self.Dsq[y1]]
-        c2_ids = self.ids[self.Dsq[x1] >= self.Dsq[y1]]
-
-        # Add pivots to the clusters to prevent empty clusters
-        c1_ids = np.append(c1_ids, self.ids[x1])
-        c2_ids = np.append(c2_ids, self.ids[y1])
+        c1_ids = self.ids[Dl[x1] < Dl[y1]]
+        c2_ids = self.ids[Dl[x1] >= Dl[y1]]
 
         # Create new clusters
-        c1 = OdacCluster(ids=c1_ids, names=self.names, update_dist=self.update_dist)
-        c2 = OdacCluster(ids=c2_ids, names=self.names, update_dist=self.update_dist)
+        c1 = OdacCluster(ids=c1_ids, names=self.names, D=self.D)
+        c2 = OdacCluster(ids=c2_ids, names=self.names, D=self.D)
 
         # Set the new clusters as children
         self.children = [c1, c2]
