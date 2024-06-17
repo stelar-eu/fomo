@@ -134,7 +134,7 @@ class OdacCluster(NodeMixin):
         # Cut to ids and values that are in this cluster
         local_arrivals = arrivals[self.ids]
 
-        if len(local_arrivals) == 0:
+        if np.count_nonzero(local_arrivals) == 0:
             return False
         
         self.n_updates += 1
