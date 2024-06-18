@@ -17,6 +17,7 @@ class OdacCluster(NodeMixin):
 
     # Optional attributes
     freq: str = 'W' # Frequency of the data
+    prediction_window: int = 40 # Number of periods to forecast
 
     # Inferred attributes
     names: np.ndarray = None # names of the columns in this cluster
@@ -70,12 +71,16 @@ class OdacCluster(NodeMixin):
     def __eq__(self, other):
         return self.identifier == other.identifier
  
-    def reset(self):
+    def reset(self, build_model=True):
         """Reset the cluster"""
         self.__post_init__()
         self.n_updates = 0
         self.is_active = True
         self.children = []
+
+    #     Rebuild the model if necessary
+        if build_model:
+            self.model.fit_forecast(periods=self.prediction_window)
     
     def print_tree(self):
         for pre, fill, node in RenderTree(self):
@@ -169,7 +174,6 @@ class OdacCluster(NodeMixin):
         
         e = self.hoeffding_bound
 
-        # DEBUG
         if self.delta is None or e is None:
             logging.info(f"Cluster {self.identifier} has not been initialized yet")
             return False
@@ -182,7 +186,7 @@ class OdacCluster(NodeMixin):
 
         return False
     
-    def split(self):
+    def split(self, build_model=True):
         """Split the cluster using d1_idx as pivots"""
         Dl = self.local_distances()
 
@@ -198,6 +202,11 @@ class OdacCluster(NodeMixin):
         # Create new clusters
         c1 = OdacCluster(ids=c1_ids, D=self.D, W=self.W)
         c2 = OdacCluster(ids=c2_ids, D=self.D, W=self.W)
+
+        # Build the models if necessary
+        if build_model:
+            c1.model.fit_forecast(periods=self.prediction_window)
+            c2.model.fit_forecast(periods=self.prediction_window)
 
         # Set the new clusters as children
         self.children = [c1, c2]
@@ -246,11 +255,11 @@ class OdacCluster(NodeMixin):
 
         return False
     
-    def merge(self):
+    def merge(self, build_model=True):
         """
         Merge the children of this cluster
         """
-        self.reset()
+        self.reset(build_model)
 
 
 

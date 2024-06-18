@@ -22,7 +22,6 @@ class FOMO:
     freq: str = 'W' # Frequency of the data
     metric: str = 'euclidean' # Distance metric
     tau: float = 1 # Threshold for the cluster tree
-    prediction_window: int = 40 # Number of periods to forecast
 
     # Inferred attributes
     n: int = 0 # Number of streams
@@ -34,6 +33,9 @@ class FOMO:
 
     # Clustering attributes
     root: OdacCluster = None
+
+    # Model attributes
+    build_new_models: bool = False # Flat to build new models when clusters are split or merged
 
     def __post_init__(self):
         self.n = len(self.names)
@@ -61,7 +63,7 @@ class FOMO:
         Fit the models of all leaf clusters and initialize the predictions
         """
         for c in self.root.get_leaves():
-            c.model.fit_forecast(periods=self.prediction_window)
+            c.model.fit_forecast()
 
     def update_window(self, new_values: pd.Series) -> None:
         """
@@ -127,9 +129,9 @@ class FOMO:
 
             # Perform the action
             if action == "merge":
-                c.merge()
+                c.merge(build_model=self.build_new_models)
             elif action == "split":
-                c.split()
+                c.split(build_model=self.build_new_models)
 
             if action:
                 logging.info(f"New tree after {action} of cluster {c.identifier}:")

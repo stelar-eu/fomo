@@ -86,20 +86,24 @@ def simulate(df: pd.DataFrame, duration: int, window: int, **kwargs) -> None:
         new_values = df.iloc[T]
         nupdates = np.count_nonzero(new_values)
 
-        #  If no updates, continue
-        if nupdates == 0:
-            T += 1
-            continue
+        logging.info(f"T={T} - Number of updates: {nupdates}")
 
         # Build the models after warmup period
         if T == warmup:
             logging.info(f"T={T} - Warmup period over; building models")
             fomo.build_all_models()
 
-        logging.info(f"T={T} - Number of updates: {nupdates}")
+        #     Set that models are built as a new cluster is activated
+            fomo.build_new_models = True
 
         # Push the update to the FOMO algorithm
         fomo.update(new_values)
+
+        # TODO implement prioritization of retraining of the models here.
+
+        # TODO implement measuring of the performance of the models here.
+
+        # TODO implement different strategies for maintaining the models.
 
         # Increment time
         T += 1
