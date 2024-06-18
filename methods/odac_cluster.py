@@ -4,16 +4,22 @@ from collections import OrderedDict
 from anytree import NodeMixin, RenderTree
 import numpy as np
 import logging
+import pandas as pd
 from typing import List
+from .model import Model
 
 @dataclass
 class OdacCluster(NodeMixin):
     # Input attributes
     ids: np.ndarray # shape: (n, )
-    names: np.ndarray # human-readable names
     D: np.ndarray # distance matrix    
+    W: pd.DataFrame # pointer to the sliding window data
 
-    # TODO: Add a model attribute and method to initialize it.
+    # Inferred attributes
+    names: np.ndarray = None # shape: (n, )
+
+    # Model attributes
+    model: Model = None
 
     # Cluster attributes
     identifier: int = field(default_factory=count().__next__)
@@ -46,10 +52,14 @@ class OdacCluster(NodeMixin):
         assert len(self.ids) > 0
         self.local_ids = {idx: i for i, idx in enumerate(self.ids)}
 
+        # Initialize the model
+        self.names = self.W.columns[self.ids]
+        self.model = Model(W=self.W, names=self.names)
+
     def __str__(self):
         string = f"Cluster {self.identifier}: "
         if self.is_active:
-            string += str(self.names[self.ids])
+            string += str(self.names)
         else:
             string += "[INACTIVE]"
         return string
@@ -183,8 +193,8 @@ class OdacCluster(NodeMixin):
         c2_ids = self.ids[Dl[x1] >= Dl[y1]]
 
         # Create new clusters
-        c1 = OdacCluster(ids=c1_ids, names=self.names, D=self.D)
-        c2 = OdacCluster(ids=c2_ids, names=self.names, D=self.D)
+        c1 = OdacCluster(ids=c1_ids, D=self.D, W=self.W)
+        c2 = OdacCluster(ids=c2_ids, D=self.D, W=self.W)
 
         # Set the new clusters as children
         self.children = [c1, c2]

@@ -71,8 +71,11 @@ def simulate(df: pd.DataFrame, duration: int, window: int, metric: str, tau: flo
     Simulate a stream and continuously maintain a cluster tree
     """
 
+    # Initialize the first sliding window
+    W = df.iloc[:window]
+
     # Initialize the FOMO algorithm
-    fomo = FOMO(names=df.columns.to_numpy(), w=window, metric=metric, tau=tau)
+    fomo = FOMO(W = W, metric=metric, tau=tau)
 
     T = 0
 

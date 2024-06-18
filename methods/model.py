@@ -12,10 +12,19 @@ class Model:
     """
 
     W: np.ndarray # Pointer to the array containing the sliding windows over the data
-    ids: np.ndarray # Array containing the ids of the streams over which the model is built
+    names: np.ndarray # Array containing the names of the streams over which the model is built
 
     model: Prophet = Prophet() # Prophet model
     predictions: pd.Series = None # Predictions made by the model
+    agg_function: str = 'avg' # Aggregation function to use for the predictions
+    freq: str = 'W' # Frequency of the data
+
+    prediction_window: int = 40 # Number of periods to forecast
+
+    def __post_init__(self):
+        # Initialize predictions
+        self.fit_forecast(periods=self.prediction_window)
+        
 
     # ------------- Helper functions -------------
     @staticmethod
@@ -29,9 +38,9 @@ class Model:
         else:
             raise ValueError("Invalid frequency")
 
-    def make_future_dataframe(self, periods, freq='W', include_history=False):
+    def make_future_dataframe(self, periods, include_history=False):
         last_date = self.model.history['ds'].max()
-        dates = Model.date_range(last_date, periods, freq)
+        dates = Model.date_range(last_date, periods, self.freq)
         dates = dates[dates > last_date]  # Drop start if equals last_date
         dates = dates[:periods]  # Return correct number of periods
 
@@ -41,21 +50,43 @@ class Model:
         return pd.DataFrame({'ds': dates})
     
     # ------------- Forecasting -------------
-    def fit_forecast(self, y: pd.Series, periods: int = 10, freq='W'):
-        # Get a very complicated model
-        model = Prophet()
+    def prepare_training_data(self):
+        """
+        Prepare the training data for the model
+        """
+        # Get and aggregate the data
+        Wf = self.W[self.names]
 
+        if self.agg_function == 'avg':
+            y = Wf.mean(axis=1)
+        elif self.agg_function == 'sum':
+            y = Wf.sum(axis=1)
+        elif self.agg_function == 'max':
+            y = Wf.max(axis=1)
+        elif self.agg_function == 'min':
+            y = Wf.min(axis=1)
+        else:
+            raise ValueError("Invalid aggregation function")
+        
         # Prepare for prophet
-        y.name = "y"
         y = y.reset_index()
+        y.columns = ['ds', 'y']
+
+        return y
+
+    def fit_forecast(self, periods):
+        """
+        Fit the model and forecast
+        """
+        # Prepare the training data
+        y = self.prepare_training_data()
 
         # Fit the model
-        model.fit(y) 
+        self.model.fit(y) 
 
         # Predict
-        future = Model.make_future_dataframe(model, periods=periods, freq=freq, include_history=False)
-        ypred = model.predict(future)
-        ypred = model.predict(future)[['ds','yhat']]
+        future = self.make_future_dataframe(periods=periods, include_history=False)
+        ypred = self.model.predict(future)[['ds','yhat']]
         ypred.set_index(ypred.ds, inplace=True)
         ypred = ypred['yhat']
 

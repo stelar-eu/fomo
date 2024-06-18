@@ -4,23 +4,10 @@ import numpy as np
 import logging
 from typing import List
 from .odac_cluster import OdacCluster
+from .distance_function import *
 from prophet import Prophet
 import pandas as pd
 
-def update_l2(D: np.ndarray, oldvals: np.ndarray, newvals: np.ndarray):
-    new_diffs = (newvals - newvals[:, None])**2
-    old_diffs = (oldvals - oldvals[:, None])**2
-    D += new_diffs - old_diffs
-
-def update_l1(D: np.ndarray, oldvals: np.ndarray, newvals: np.ndarray):
-    new_diffs = np.abs(newvals - newvals[:, None])
-    old_diffs = np.abs(oldvals - oldvals[:, None])
-    D += new_diffs - old_diffs
-
-distfuncs = {
-    'euclidean': update_l2,
-    'manhattan': update_l1,
-}
 
 @dataclass
 class FOMO:
@@ -28,8 +15,7 @@ class FOMO:
     Implementation of the FOMO algorithm.
     """
     # Required attributes
-    names: List[str] # Names of the streams
-    w: int # Sliding window size
+    W: pd.DataFrame # Sliding window
 
     # Optional attributes
     metric: str = 'euclidean' # Distance metric
@@ -37,30 +23,25 @@ class FOMO:
 
     # Inferred attributes
     n: int = 0 # Number of streams
-    update_func: callable = None
+    w: int = 0 # Window size
+    distfunc: DistanceFunction = None
 
     # Distance attributes
     D: np.ndarray = None # Distance matrix
-    W: pd.DataFrame = None # Sliding window
 
     # Clustering attributes
     root: OdacCluster = None
 
     def __post_init__(self):
-        self.n = len(self.names)
+        self.w, self.n = self.W.shape
 
-        assert self.metric in distfuncs, f"Invalid metric: {self.metric}"
-        self.update_func = distfuncs[self.metric]
+        self.distfunc = get_distfunc(self.metric)
 
         # Initialize distance matrix and sliding window
-        self.D = np.zeros((self.n, self.n))
-        self.W = pd.DataFrame(
-            columns=self.names,
-            index=pd.to_datetime([]),
-            )
+        self.D = self.distfunc.initialize_distances(self.W.values)
 
         # Initialize root node of the tree (the initial cluster) and set
-        self.root = OdacCluster(ids=np.arange(self.n), names=self.names, D=self.D, tau=self.tau)
+        self.root = OdacCluster(ids=np.arange(self.n), D=self.D, W=self.W, tau=self.tau)
 
     def __str__(self):
         return f"FOMO algorithm with {self.n} streams and a window size of {self.w}"
@@ -108,7 +89,7 @@ class FOMO:
         Update the distance matrix with a new arrival
         """
         # Update the distance matrix
-        self.update_func(self.D, old, new)
+        self.distfunc(self.D, old, new)
 
     def update_cluster_tree(self, new_values: np.ndarray):
         """
