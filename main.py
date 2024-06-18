@@ -1,8 +1,10 @@
 import sys
 import logging
 import numpy as np
-from methods.odac_cluster import OdacCluster
+from methods.fomo import FOMO
 import argparse
+from typing import List
+import numpy as np
 import scipy.sparse as sp
 
 # Setup logger
@@ -20,21 +22,6 @@ argparse.add_argument("-m", "--metric", type=str, help="Distance metric to use f
 argparse.add_argument("-t", "--tau", type=float, help="Threshold for the cluster tree", default=1)
 argparse.add_argument("--index", type=bool, help="Flag to indicate if the input file has an index column", default=False)
 argparse.add_argument("--header", type=bool, help="Flag to indicate if the input file has a header", default=False)
-
-def update_l2(D: np.ndarray, newvals: np.ndarray, oldvals: np.ndarray):
-    new_diffs = (newvals - newvals[:, None])**2
-    old_diffs = (oldvals - oldvals[:, None])**2
-    D += new_diffs - old_diffs
-
-def update_l1(D: np.ndarray, newvals: np.ndarray, oldvals: np.ndarray):
-    new_diffs = np.abs(newvals - newvals[:, None])
-    old_diffs = np.abs(oldvals - oldvals[:, None])
-    D += new_diffs - old_diffs
-
-distfuncs = {
-    'euclidean': update_l2,
-    'manhattan': update_l1,
-}
 
 def get_data(path:str, **kwargs):
     """
@@ -76,28 +63,13 @@ def get_data(path:str, **kwargs):
         logging.error(f"Error while reading data: {e}, data should be in csv format with columns [Date, Stream1, Stream2, ...]")
         sys.exit(1)
 
-def main(input_path:str, metric:str, window:int, **kwargs):
+def simulate(data: np.ndarray, names: List[str], duration: int, window: int, metric: str, tau: float) -> None:
     """
-    Main function; simulate a stream and continuously maintain a cluster tree
+    Simulate a stream and continuously maintain a cluster tree
     """
 
-    n_streams = kwargs.get("n_streams", None)
-    duration = kwargs.get("duration", None)
-    tau = kwargs.get("tau", 1)
-
-    logging.info(f"Starting main function with n_streams={n_streams} and duration={duration}")
-
-    # Get data
-    data, names = get_data(input_path, **kwargs)
-
-    duration, n_streams = data.shape
-
-    # Initialize distance matrix and arrival history
-    D = np.zeros((n_streams, n_streams))
-    A_history = np.zeros((window, n_streams))
-
-    # Initialize root node of the tree (the initial cluster) and set
-    root = OdacCluster(ids=np.arange(n_streams), names=names, D=D, tau=tau)
+    # Initialize the FOMO algorithm
+    fomo = FOMO(names=names, w=window, metric=metric, tau=tau)
 
     T = 0
 
@@ -114,43 +86,34 @@ def main(input_path:str, metric:str, window:int, **kwargs):
 
         logging.info(f"T={T} - Number of updates: {nupdates}")
 
-        # Get the values to retire
-        oldvals = A_history[0]
-
-        # Update the arrival history
-        A_history = np.roll(A_history, -1, axis=0)
-        A_history[-1] = A
-
-        # Update the distance matrix
-        distfuncs[metric](root.D, A, oldvals)
-
-        # Update the clusters
-        for c in root.get_leaves():
-            if c.is_singleton():
-                continue
-
-            # Update the statistics of the cluster
-            updated = c.update_stats(A)
-            if not updated:
-                continue
-
-            # Check if the cluster needs to split or merge
-            action = None
-            if c.check_merge():
-                action = "merge"
-            elif c.check_split():
-                action = "split"
-
-            if action:
-                logging.info(f"T={T} - New tree after {action} of cluster {c.identifier}:")
-                root.print_tree()
+        # Push the update to the FOMO algorithm
+        fomo.update(A)
 
         # Increment time
         T += 1
 
     logging.info(f"Final tree:")
-    root.print_tree()
+    fomo.print_tree()
 
+def main(input_path:str, metric:str, window:int, **kwargs):
+    """
+    Main function; simulate a stream and continuously maintain a cluster tree
+    """
+
+    n_streams = kwargs.get("n_streams", None)
+    duration = kwargs.get("duration", None)
+    tau = kwargs.get("tau", 1)
+    
+    logging.info(f"Starting main function with n_streams={n_streams} and duration={duration}")
+
+    # Load the data
+    data, names = get_data(input_path, **kwargs)
+    duration, n_streams = data.shape
+
+    # Run the stream simulation
+    simulate(data, names, duration, window, metric, tau)
+
+    
 if __name__ == "__main__":
 
     logging.info(f"Arguments: {sys.argv}")

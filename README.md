@@ -1,2 +1,2 @@
-# UCA.2_incident_model_management
+# FOrecasting Model Orchestrator (FOMO) - STELAR Use Case A.2
 Repository of STELAR Use Case A.2; Periodic renewal of time series predictions. 
