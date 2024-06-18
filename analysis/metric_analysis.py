@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import os
 from scipy.stats import spearmanr, kendalltau
+from ..methods.model import Model
 
 def get_data(path:str, index:bool=False, header:bool=False, n:int=None):
     """
@@ -33,66 +34,12 @@ import logging
 
 logging.getLogger("cmdstanpy").disabled = True #  turn 'cmdstanpy' logs off
 
-def date_range(start, periods, freq='W'):
-    if freq == 'W':
-        return pd.DatetimeIndex([start + pd.DateOffset(weeks=i) for i in range(1,periods+1)])
-    elif freq == 'D':
-        return pd.DatetimeIndex([start + pd.DateOffset(days=i) for i in range(1,periods+1)])
-    elif freq == 'M':
-        return pd.DatetimeIndex([start + pd.DateOffset(months=i) for i in range(1,periods+1)])
-    else:
-        raise ValueError("Invalid frequency")
-
-
-def make_future_dataframe(model, periods, freq='W', include_history=False):
-    last_date = model.history['ds'].max()
-    dates = date_range(last_date, periods, freq)
-    dates = dates[dates > last_date]  # Drop start if equals last_date
-    dates = dates[:periods]  # Return correct number of periods
-
-    if include_history:
-        dates = np.concatenate((np.array(model.history_dates), dates))
-
-    return pd.DataFrame({'ds': dates})
-
-def build_model():
-    return Prophet()
-
-def fit_forecast(y, periods, freq='W', include_history=False):
-    # Get a very complicated model
-    model = Prophet()
-
-    # Prepare for prophet
-    y.name = "y"
-    y = y.reset_index()
-
-    # Fit the model
-    model.fit(y) 
-
-    # Predict
-    future = make_future_dataframe(model, periods=periods, freq=freq, include_history=include_history)
-    ypred = model.predict(future)
-    ypred = model.predict(future)[['ds','yhat']]
-    ypred.set_index(ypred.ds, inplace=True)
-    ypred = ypred['yhat']
-
-    # Only take the predictions
-    # ypred = ypred.iloc[-weeks:]
-
-    # Make things non-negative integers 
-    ypred = ypred.round().astype(int)
-    ypred[ypred < 0] = 0
-
-    return ypred
-
 def evaluate(ytrue, ypred):
     return root_mean_squared_error(ytrue, ypred)
 
 def flat_triu(matrix):
     n = matrix.shape[0]
     return matrix[np.triu_indices(n, k=1)]
-
-
 
 def main(input_path, freq='W', n=None, index=True, header=True):
     print(f"Running analysis for {input_path}")
@@ -125,7 +72,8 @@ def main(input_path, freq='W', n=None, index=True, header=True):
         for j in range(i,n):
             ytrain = (X_train.iloc[:,i] + X_train.iloc[:,j]) / 2
             ytest = (X_test.iloc[:,i] + X_test.iloc[:,j]) / 2
-            ypred = fit_forecast(ytrain, test_size, freq=freq, include_history=False)
+            m = Model()
+            ypred = m.fit_forecast(ytrain, test_size, freq=freq, include_history=False)
             rmse = evaluate(ytest, ypred)
             pair_rmse[i,j] = rmse
             pair_rmse[j,i] = rmse

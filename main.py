@@ -5,7 +5,7 @@ from methods.fomo import FOMO
 import argparse
 from typing import List
 import numpy as np
-import scipy.sparse as sp
+import pandas as pd
 
 # Setup logger
 FORMAT = '%(asctime)s - [%(levelname)s] %(message)s'
@@ -23,61 +23,64 @@ argparse.add_argument("-t", "--tau", type=float, help="Threshold for the cluster
 argparse.add_argument("--index", type=bool, help="Flag to indicate if the input file has an index column", default=False)
 argparse.add_argument("--header", type=bool, help="Flag to indicate if the input file has a header", default=False)
 
-def get_data(path:str, **kwargs):
+def get_data(path:str, **kwargs) -> pd.DataFrame:
     """
     Get data from csv file
     """
     n_streams = kwargs.get("n_streams", None)
     duration = kwargs.get("duration", None)
-    header = kwargs.get("header", False)
-    index = kwargs.get("index", False)
+    header = kwargs.get("header", None)
+    index = kwargs.get("index", None)
 
-    try:
-        startrow = 1 if header else 0
-        startcol = 1 if index else 0
+    header = 0 if header else None
+    index_col = 0 if index else None
 
+    try:    
         # Check if n_streams are valid
         with open(path) as f:
-            header = f.readline().split(",")
-            n_cols = len(header)
+            firstline = f.readline().split(",")
+            n_cols = len(firstline)
+            if index: n_cols -= 1
             if n_streams is not None and n_streams > n_cols:
-                n_streams = n_cols - 1
+                n_streams = n_cols
 
-            # Get ids from header if possible
-            names = np.array(header[startcol:n_streams+startcol])
-
-        if n_streams is None and duration is None:
-            data = np.genfromtxt(path, delimiter=",", skip_header=startrow, usecols=range(startcol, None))
-        elif n_streams is None:
-            data = np.genfromtxt(path, delimiter=",", max_rows=duration, skip_header=startrow, usecols=range(startcol, None))
-        elif duration is None:
-            data = np.genfromtxt(path, delimiter=",", usecols=range(startcol, n_streams+startcol), skip_header=startrow)
-        else:
-            data = np.genfromtxt(path, delimiter=",", max_rows=duration, usecols=range(startcol, n_streams+startcol), skip_header=startrow)
-
-        if not header:
-            names = np.arange(n_streams)
-
-        return data, names
+        # Read the data
+        df = pd.read_csv(path, 
+                        header=header, 
+                        index_col=index_col,
+                        usecols=range(n_streams+1),
+                        nrows=duration)
     except Exception as e:
         logging.error(f"Error while reading data: {e}, data should be in csv format with columns [Date, Stream1, Stream2, ...]")
         sys.exit(1)
 
-def simulate(data: np.ndarray, names: List[str], duration: int, window: int, metric: str, tau: float) -> None:
+    # Parse the dates if index is given
+    if index:
+        try:
+            df.index = pd.to_datetime(df.index)
+        except Exception as e:
+            logging.error(f"Error while parsing index dates: {e}, make sure the index contains dates and that their are in the correct format")
+            sys.exit(1)
+    else:
+        df.index = pd.date_range(start="2020-01-01", periods=df.shape[0], freq='W')
+
+    return df
+
+def simulate(df: pd.DataFrame, duration: int, window: int, metric: str, tau: float) -> None:
     """
     Simulate a stream and continuously maintain a cluster tree
     """
 
     # Initialize the FOMO algorithm
-    fomo = FOMO(names=names, w=window, metric=metric, tau=tau)
+    fomo = FOMO(names=df.columns.to_numpy(), w=window, metric=metric, tau=tau)
 
     T = 0
 
     # Simulate stream
     while T < duration:
         # Get all updates
-        A = data[T]
-        nupdates = np.count_nonzero(A)
+        new_values = df.iloc[T]
+        nupdates = np.count_nonzero(new_values)
 
         #  If no updates, continue
         if nupdates == 0:
@@ -87,7 +90,7 @@ def simulate(data: np.ndarray, names: List[str], duration: int, window: int, met
         logging.info(f"T={T} - Number of updates: {nupdates}")
 
         # Push the update to the FOMO algorithm
-        fomo.update(A)
+        fomo.update(new_values)
 
         # Increment time
         T += 1
@@ -107,11 +110,11 @@ def main(input_path:str, metric:str, window:int, **kwargs):
     logging.info(f"Starting main function with n_streams={n_streams} and duration={duration}")
 
     # Load the data
-    data, names = get_data(input_path, **kwargs)
-    duration, n_streams = data.shape
+    df = get_data(input_path, **kwargs)
+    duration, n_streams = df.shape
 
     # Run the stream simulation
-    simulate(data, names, duration, window, metric, tau)
+    simulate(df, duration, window, metric, tau)
 
     
 if __name__ == "__main__":

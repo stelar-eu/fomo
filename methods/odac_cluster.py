@@ -13,6 +13,8 @@ class OdacCluster(NodeMixin):
     names: np.ndarray # human-readable names
     D: np.ndarray # distance matrix    
 
+    # TODO: Add a model attribute and method to initialize it.
+
     # Cluster attributes
     identifier: int = field(default_factory=count().__next__)
     is_active: bool = True
@@ -219,7 +221,6 @@ class OdacCluster(NodeMixin):
         d1 = self.d1
         pd1 = self.parent.d1
 
-        # TODO DEBUG
         if d1 is None or pd1 is None or e is None or pe is None:
             logging.info(f"Cluster {self.identifier} has not been initialized yet")
             return False
