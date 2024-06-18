@@ -6,6 +6,7 @@ import argparse
 from typing import List
 import numpy as np
 import pandas as pd
+import math
 
 # Setup logger
 FORMAT = '%(asctime)s - [%(levelname)s] %(message)s'
@@ -20,6 +21,7 @@ argparse.add_argument("-n", "--n_streams",  type=int, help="Number of streams to
 argparse.add_argument("-d", "--duration", type=int, help="Duration of the stream; how many timesteps we want to simulate", default=None)
 argparse.add_argument("-m", "--metric", type=str, help="Distance metric to use for clustering", default="euclidean")
 argparse.add_argument("-t", "--tau", type=float, help="Threshold for the cluster tree", default=1)
+argparse.add_argument("--warmup", type=int, help="Number of time steps after which we will start building models", default=None)
 argparse.add_argument("--index", type=bool, help="Flag to indicate if the input file has an index column", default=False)
 argparse.add_argument("--header", type=bool, help="Flag to indicate if the input file has a header", default=False)
 
@@ -66,21 +68,20 @@ def get_data(path:str, **kwargs) -> pd.DataFrame:
 
     return df
 
-def simulate(df: pd.DataFrame, duration: int, window: int, metric: str, tau: float) -> None:
+def simulate(df: pd.DataFrame, duration: int, window: int, **kwargs) -> None:
     """
     Simulate a stream and continuously maintain a cluster tree
     """
-
-    # Initialize the first sliding window
-    W = df.iloc[:window]
+    tau = kwargs.get("tau", 1)
+    warmup = kwargs.get("warmup", math.ceil(duration*.1))
 
     # Initialize the FOMO algorithm
-    fomo = FOMO(W = W, metric=metric, tau=tau)
+    fomo = FOMO(names=df.columns, w=window, metric=metric, tau=tau)
 
     T = 0
 
     # Simulate stream
-    while T < duration:
+    while T < duration+warmup:
         # Get all updates
         new_values = df.iloc[T]
         nupdates = np.count_nonzero(new_values)
@@ -89,6 +90,11 @@ def simulate(df: pd.DataFrame, duration: int, window: int, metric: str, tau: flo
         if nupdates == 0:
             T += 1
             continue
+
+        # Build the models after warmup period
+        if T == warmup:
+            logging.info(f"T={T} - Warmup period over; building models")
+            fomo.build_all_models()
 
         logging.info(f"T={T} - Number of updates: {nupdates}")
 
@@ -106,18 +112,14 @@ def main(input_path:str, metric:str, window:int, **kwargs):
     Main function; simulate a stream and continuously maintain a cluster tree
     """
 
-    n_streams = kwargs.get("n_streams", None)
-    duration = kwargs.get("duration", None)
-    tau = kwargs.get("tau", 1)
-    
-    logging.info(f"Starting main function with n_streams={n_streams} and duration={duration}")
-
     # Load the data
     df = get_data(input_path, **kwargs)
     duration, n_streams = df.shape
+    kwargs["n_streams"] = n_streams
+    kwargs["duration"] = duration
 
     # Run the stream simulation
-    simulate(df, duration, window, metric, tau)
+    simulate(df=df, window=window, metric=metric, **kwargs)
 
     
 if __name__ == "__main__":
@@ -126,11 +128,12 @@ if __name__ == "__main__":
 
     if len(sys.argv) == 1:
         input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly.csv"
-        metric="manhattan"
-        window=100
+        metric = "manhattan"
+        window = 100
         args = {
             "n_streams":  100,
             "duration":  600,
+            "warmup": 300,
             "tau":  1,
             "index":  True,
             "header":  True,

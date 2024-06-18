@@ -4,6 +4,10 @@ from prophet import Prophet
 import pandas as pd
 import pickle
 from prophet.serialize import model_from_json
+import logging
+
+logging.getLogger("cmdstanpy").disabled = True #  turn 'cmdstanpy' logs off
+logging.getLogger("prophet").disabled = True #  turn 'cmdstanpy' logs off
 
 @dataclass
 class Model:
@@ -11,20 +15,15 @@ class Model:
     A class representing a Prophet model and providing methods to interact with it.
     """
 
-    W: np.ndarray # Pointer to the array containing the sliding windows over the data
+    W: pd.DataFrame # Pointer to the DataFrame containing the sliding windows over the data
     names: np.ndarray # Array containing the names of the streams over which the model is built
 
-    model: Prophet = Prophet() # Prophet model
-    predictions: pd.Series = None # Predictions made by the model
+    # Optional attributes
     agg_function: str = 'avg' # Aggregation function to use for the predictions
     freq: str = 'W' # Frequency of the data
 
-    prediction_window: int = 40 # Number of periods to forecast
-
-    def __post_init__(self):
-        # Initialize predictions
-        self.fit_forecast(periods=self.prediction_window)
-        
+    # Model attributes
+    predictions: pd.Series = None # Predictions made by the model
 
     # ------------- Helper functions -------------
     @staticmethod
@@ -50,6 +49,12 @@ class Model:
         return pd.DataFrame({'ds': dates})
     
     # ------------- Forecasting -------------
+    def init_model(self):
+        """
+        Build the model
+        """
+        self.model = Prophet()
+
     def prepare_training_data(self):
         """
         Prepare the training data for the model
@@ -78,6 +83,8 @@ class Model:
         """
         Fit the model and forecast
         """
+        self.init_model()
+
         # Prepare the training data
         y = self.prepare_training_data()
 

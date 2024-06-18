@@ -6,17 +6,20 @@ import numpy as np
 import logging
 import pandas as pd
 from typing import List
-from .model import Model
+from methods.model import Model
 
 @dataclass
 class OdacCluster(NodeMixin):
     # Input attributes
-    ids: np.ndarray # shape: (n, )
+    ids: np.ndarray # ids of the columns in this cluster
     D: np.ndarray # distance matrix    
     W: pd.DataFrame # pointer to the sliding window data
 
+    # Optional attributes
+    freq: str = 'W' # Frequency of the data
+
     # Inferred attributes
-    names: np.ndarray = None # shape: (n, )
+    names: np.ndarray = None # names of the columns in this cluster
 
     # Model attributes
     model: Model = None
@@ -54,12 +57,12 @@ class OdacCluster(NodeMixin):
 
         # Initialize the model
         self.names = self.W.columns[self.ids]
-        self.model = Model(W=self.W, names=self.names)
+        self.model = Model(W=self.W, names=self.names, freq=self.freq)
 
     def __str__(self):
         string = f"Cluster {self.identifier}: "
         if self.is_active:
-            string += str(self.names)
+            string += str(self.names.tolist())
         else:
             string += "[INACTIVE]"
         return string

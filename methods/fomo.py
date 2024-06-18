@@ -3,8 +3,8 @@ from itertools import count
 import numpy as np
 import logging
 from typing import List
-from .odac_cluster import OdacCluster
-from .distance_function import *
+from methods.odac_cluster import OdacCluster
+from methods.distance_function import *
 from prophet import Prophet
 import pandas as pd
 
@@ -15,30 +15,36 @@ class FOMO:
     Implementation of the FOMO algorithm.
     """
     # Required attributes
-    W: pd.DataFrame # Sliding window
+    names: List[str] # Names of the streams
+    w: int # Sliding window size
 
     # Optional attributes
+    freq: str = 'W' # Frequency of the data
     metric: str = 'euclidean' # Distance metric
     tau: float = 1 # Threshold for the cluster tree
+    prediction_window: int = 40 # Number of periods to forecast
 
     # Inferred attributes
     n: int = 0 # Number of streams
-    w: int = 0 # Window size
     distfunc: DistanceFunction = None
 
     # Distance attributes
     D: np.ndarray = None # Distance matrix
+    W: pd.DataFrame = None # Sliding window
 
     # Clustering attributes
     root: OdacCluster = None
 
     def __post_init__(self):
-        self.w, self.n = self.W.shape
-
+        self.n = len(self.names)
         self.distfunc = get_distfunc(self.metric)
 
         # Initialize distance matrix and sliding window
-        self.D = self.distfunc.initialize_distances(self.W.values)
+        self.D = np.zeros((self.n, self.n))
+        self.W = pd.DataFrame(
+            columns=self.names,
+            index=pd.to_datetime([]),
+            )
 
         # Initialize root node of the tree (the initial cluster) and set
         self.root = OdacCluster(ids=np.arange(self.n), D=self.D, W=self.W, tau=self.tau)
@@ -50,6 +56,12 @@ class FOMO:
         return self.__str__()
     
     # ------------------------- Model management -------------------------
+    def build_all_models(self):
+        """
+        Fit the models of all leaf clusters and initialize the predictions
+        """
+        for c in self.root.get_leaves():
+            c.model.fit_forecast(periods=self.prediction_window)
 
     def update_window(self, new_values: pd.Series) -> None:
         """
@@ -70,7 +82,7 @@ class FOMO:
         self.W.loc[new_values.name] = new_values
 
         return oldarr, new_values.values
-
+    
     def update(self, new_values: pd.Series):
         """
         Update the FOMO algorithm with a new arrival
@@ -89,7 +101,7 @@ class FOMO:
         Update the distance matrix with a new arrival
         """
         # Update the distance matrix
-        self.distfunc(self.D, old, new)
+        self.distfunc.update_distances(self.D, old, new)
 
     def update_cluster_tree(self, new_values: np.ndarray):
         """
