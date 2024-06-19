@@ -1,26 +1,27 @@
+import logging
 from dataclasses import dataclass, field
 from itertools import count
-from collections import OrderedDict
-from anytree import NodeMixin, RenderTree
+
 import numpy as np
-import logging
 import pandas as pd
-from typing import List
+from anytree import NodeMixin, RenderTree
+
 from methods.model import Model
+
 
 @dataclass
 class OdacCluster(NodeMixin):
     # Input attributes
-    ids: np.ndarray # ids of the columns in this cluster
-    D: np.ndarray # distance matrix    
-    W: pd.DataFrame # pointer to the sliding window data
+    ids: np.ndarray  # ids of the columns in this cluster
+    D: np.ndarray  # distance matrix
+    W: pd.DataFrame  # pointer to the sliding window data
 
     # Optional attributes
-    freq: str = 'W' # Frequency of the data
-    prediction_window: int = 40 # Number of periods to forecast
+    freq: str = 'W'  # Frequency of the data
+    prediction_window: int = 40  # Number of periods to forecast
 
     # Inferred attributes
-    names: np.ndarray = None # names of the columns in this cluster
+    names: np.ndarray = None  # names of the columns in this cluster
 
     # Model attributes
     model: Model = None
@@ -28,17 +29,19 @@ class OdacCluster(NodeMixin):
     # Cluster attributes
     identifier: int = field(default_factory=count().__next__)
     is_active: bool = True
-    local_ids: dict = None # shape: (n, )
+    local_ids: dict = None  # shape: (n, )
+    n_updates: int = 0  # Number of times the statistics have been updated
+    age: int = 0  # Number of time steps since the cluster was created
 
     # Distance statistics attributes
-    d0: float = None
+    d0: float = 0
     d0_ids: tuple = None
-    d1: float = None
+    d1: float = 0
     d1_ids: tuple = None
-    d2: float = None
+    d2: float = 0
     d2_ids: tuple = None
-    delta: float = None
-    davg: float = None
+    delta: float = 0
+    davg: float = 0
 
     hoeffding_bound: float = None
     min_value: float = 0
@@ -50,7 +53,6 @@ class OdacCluster(NodeMixin):
     n_min: int = 5
 
     # Stream attributes
-    n_updates: int = 0
 
     def __post_init__(self):
         assert len(self.ids) > 0
@@ -67,7 +69,7 @@ class OdacCluster(NodeMixin):
         else:
             string += "[INACTIVE]"
         return string
-    
+
     def __eq__(self, other):
         return self.identifier == other.identifier
 
@@ -77,37 +79,41 @@ class OdacCluster(NodeMixin):
     def predict(self):
         """(Re-)Do the predictions of the next periods"""
         self.model.fit_forecast(periods=self.prediction_window)
- 
+
     def reset(self, predict=True):
         """Reset the cluster"""
+        # Delete the children
+        for c in self.children:
+            del c
+
         self.__post_init__()
         self.n_updates = 0
         self.is_active = True
         self.children = []
 
-    #     Do predictions model if necessary
+        #     Do predictions model if necessary
         if predict: self.predict()
-    
+
     def print_tree(self):
         for pre, fill, node in RenderTree(self):
             logging.info(f"{pre}{node}")
-    
+
     def is_leaf(self):
         """Check if the cluster is a leaf"""
         return not self.children
-    
+
     def is_singleton(self):
         """Check if the cluster is a singleton"""
         return len(self.ids) == 1
 
     def get_leaves(self):
         """Get the leaves of the tree"""
-        if self.is_leaf(): # I am leaf
+        if self.is_leaf():  # I am leaf
             return [self]
 
         # Get the leaves of the children
         return self.children[0].get_leaves() + self.children[1].get_leaves()
-    
+
     def deactivate(self):
         """Deactivate the cluster"""
         self.is_active = False
@@ -117,8 +123,11 @@ class OdacCluster(NodeMixin):
         return self.D[np.ix_(self.ids, self.ids)]
 
     """Get the different diameter statistics of the cluster"""
+
     def update_diameter_coefficients(self):
-        Dl = self.local_distances() # shape: (n, n)
+        if self.is_singleton(): return
+
+        Dl = self.local_distances()  # shape: (n, n)
         dshape = Dl.shape
 
         # Make sure the diagonal does not influence the statistics
@@ -146,7 +155,7 @@ class OdacCluster(NodeMixin):
         # Get the average distance
         self.davg = np.nanmean(Dl)
 
-    def update_range(self,vals):
+    def update_range(self, vals):
         """Update the range statistic"""
         self.max_value = np.max([self.max_value, np.max(vals)])
         self.Rsq = self.max_value * self.max_value
@@ -155,14 +164,11 @@ class OdacCluster(NodeMixin):
         """Update the Hoeffding bound on the error of the diameter statistics"""
         self.hoeffding_bound = np.sqrt(self.Rsq * np.log(1 / self.confidence_level) / (2 * self.n_updates))
 
-    def update_stats(self, arrivals:np.ndarray):
+    def update_stats(self, arrivals: np.ndarray):
         """Update the cluster with multiple observations"""
         # Cut to ids and values that are in this cluster
         local_arrivals = arrivals[self.ids]
 
-        if np.count_nonzero(local_arrivals) == 0:
-            return False
-        
         self.n_updates += 1
 
         # Update diameter statistics
@@ -170,28 +176,28 @@ class OdacCluster(NodeMixin):
         self.update_hoeffding()
         self.update_diameter_coefficients()
 
-        return True
-
     def check_split(self):
         """Test if the cluster should be split, if so, do it."""
 
+        # Cannot split a singleton
+        if self.is_singleton(): return False
+
         if self.n_updates <= self.n_min:
             return False
-        
+
         e = self.hoeffding_bound
 
         if self.delta is None or e is None:
             logging.info(f"Cluster {self.identifier} has not been initialized yet")
             return False
-        
+
         # Check if the Hoeffding bound is violated
-        if ( self.delta > e ) or ( self.tau > e ):
-            if ( (self.d1 - self.d0) * abs((self.d1 - self.davg) - (self.davg - self.d0)) ) > e:
-                self.split()
+        if (self.delta > e) or (self.tau > e):
+            if ((self.d1 - self.d0) * abs((self.d1 - self.davg) - (self.davg - self.d0))) > e:
                 return True
 
         return False
-    
+
     def split(self, predict=True):
         """Split the cluster using d1_idx as pivots"""
         Dl = self.local_distances()
@@ -199,7 +205,8 @@ class OdacCluster(NodeMixin):
         # Get the pivot indices
         x1, y1 = self.d1_ids
 
-        logging.info(f"Splitting cluster {self.identifier} with {self.n_updates} observations and pivot indices {self.ids[x1]} and {self.ids[y1]}")
+        logging.info(
+            f"Splitting cluster {self.identifier} with {self.n_updates} observations and pivot indices {self.ids[x1]} and {self.ids[y1]}")
 
         # Assign the observations to the new clusters based on the pivot indices
         c1_ids = self.ids[Dl[x1] < Dl[y1]]
@@ -236,9 +243,9 @@ class OdacCluster(NodeMixin):
         # Check if the cluster is active
         if not self.is_active:
             return False
-        
+
         assert not self.parent.is_active
-        
+
         # Check if enough observations are present
         if self.n_updates <= self.n_min:
             return False
@@ -253,23 +260,17 @@ class OdacCluster(NodeMixin):
             logging.info(f"Cluster {self.identifier} has not been initialized yet")
             return False
 
-        if (d1 - pd1) > max(e,pe):
-            logging.info(f"Merging cluster {self.identifier} with parent {self.parent.identifier}, stats d1: {self.d1}, pd1: {self.parent.d1}, e: {self.hoeffding_bound}, pe: {self.parent.hoeffding_bound}")
+        if (d1 - pd1) > max(e, pe):
+            logging.info(
+                f"Merging cluster {self.identifier} with parent {self.parent.identifier}, stats d1: {self.d1}, pd1: {self.parent.d1}, e: {self.hoeffding_bound}, pe: {self.parent.hoeffding_bound}")
 
             self.parent.merge()
             return True
 
         return False
-    
+
     def merge(self, predict=True):
         """
         Merge the children of this cluster
         """
         self.reset(predict)
-
-
-
-
-
-
-
