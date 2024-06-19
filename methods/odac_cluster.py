@@ -81,14 +81,9 @@ class OdacCluster(NodeMixin):
 
     def reset(self, predict=True):
         """Reset the cluster"""
-        # Delete the children
-        for c in self.children:
-            del c
-
         self.__post_init__()
         self.n_updates = 0
         self.is_active = True
-        self.children = []
 
         #     Do predictions model if necessary
         if predict: self.predict()
@@ -255,8 +250,6 @@ class OdacCluster(NodeMixin):
         # Check if the cluster is active
         if not self.is_active:
             return False
-
-        assert not self.parent.is_active
 
         # Check if enough observations are present
         if self.n_updates <= self.n_min:

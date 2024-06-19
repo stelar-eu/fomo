@@ -10,7 +10,7 @@ import pandas as pd
 from methods.fomo import FOMO
 
 # Setup logger
-FORMAT = '%(asctime)s - [%(levelname)s] %(message)s'
+FORMAT = '%(asctime)s.%(msecs)03d - [%(levelname)s] %(message)s'
 logging.basicConfig(format=FORMAT, datefmt='%d/%m/%Y %H:%M:%S')
 logging.getLogger().setLevel(logging.INFO)
 
@@ -162,8 +162,6 @@ def simulate(df: pd.DataFrame, window: int, budget: int, **kwargs) -> None:
         else:
             logging.warning(f"T={T} - No budget left for updating forecasts")
 
-        # TODO implement different strategies for maintaining the models.
-
     logging.info(f"Final tree:")
     fomo.print_tree()
 
@@ -189,12 +187,12 @@ if __name__ == "__main__":
         input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly.csv"
         metric = "manhattan"
         window = 100
-        budget = 1000
+        budget = 100
         args = {
             "n_streams": 100,
             "duration": 100,
-            "warmup": 5,
-            "selection": 'singleton',
+            "warmup": 30,
+            "selection": 'odac',
             "prioritization": 'rmse',
             "tau": 1,
             "index": True,

@@ -166,7 +166,7 @@ class FOMO:
 
         # Update the forecasts until the budget is exceeded
         for c in sorted_clusters:
-            if time.time() - start > budget:
+            if (time.time() - start) * 1000 > budget:
                 logging.info(f"Budget of {budget}ms exceeded; stopping forecast updates")
                 break
 
@@ -175,16 +175,28 @@ class FOMO:
 
     def prioritize_updates(self) -> List[OdacCluster]:
         """
-        Prioritize the updating of forecasts by evaluating the models
+        Prioritize the updating of forecasts using the specified strategy
         """
 
-        # TODO Implement different prioritizations here
+        if self.prio_strategy == 'rmse':
+            return self.prioritize_updates_rmse()
+        elif self.prio_strategy == 'random':
+            return self.prioritize_updates_random()
+        else:
+            raise ValueError(f"Invalid prioritization strategy: {self.prio_strategy}")
 
+    def prioritize_updates_rmse(self) -> List[OdacCluster]:
         # Sort the clusters by their latest RMSE (desc) and filter out models that were never evaluated or have RMSE 0
-        filt_clusters = [c for c in self.root.get_leaves() if c.model.curr_rmse > 0]
+        filt_clusters = [c for c in self.root.get_leaves() if c.model.curr_rmse is not None and c.model.curr_rmse > 0]
         sorted_clusters = sorted(filt_clusters, key=lambda c: c.model.curr_rmse, reverse=True)
 
         return sorted_clusters
+
+    def prioritize_updates_random(self) -> List[OdacCluster]:
+        """
+        Prioritize the updating of forecasts randomly
+        """
+        return np.random.permutation(self.root.get_leaves()).tolist()
 
     def evaluate_all(self, evaluation_window=5):
         """
