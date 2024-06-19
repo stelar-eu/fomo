@@ -70,17 +70,23 @@ class OdacCluster(NodeMixin):
     
     def __eq__(self, other):
         return self.identifier == other.identifier
+
+    def __hash__(self):
+        return hash(self.identifier)
+
+    def predict(self):
+        """(Re-)Do the predictions of the next periods"""
+        self.model.fit_forecast(periods=self.prediction_window)
  
-    def reset(self, build_model=True):
+    def reset(self, predict=True):
         """Reset the cluster"""
         self.__post_init__()
         self.n_updates = 0
         self.is_active = True
         self.children = []
 
-    #     Rebuild the model if necessary
-        if build_model:
-            self.model.fit_forecast(periods=self.prediction_window)
+    #     Do predictions model if necessary
+        if predict: self.predict()
     
     def print_tree(self):
         for pre, fill, node in RenderTree(self):
@@ -186,7 +192,7 @@ class OdacCluster(NodeMixin):
 
         return False
     
-    def split(self, build_model=True):
+    def split(self, predict=True):
         """Split the cluster using d1_idx as pivots"""
         Dl = self.local_distances()
 
@@ -203,8 +209,8 @@ class OdacCluster(NodeMixin):
         c1 = OdacCluster(ids=c1_ids, D=self.D, W=self.W)
         c2 = OdacCluster(ids=c2_ids, D=self.D, W=self.W)
 
-        # Build the models if necessary
-        if build_model:
+        # Predict if necessary
+        if predict:
             c1.model.fit_forecast(periods=self.prediction_window)
             c2.model.fit_forecast(periods=self.prediction_window)
 
@@ -255,11 +261,11 @@ class OdacCluster(NodeMixin):
 
         return False
     
-    def merge(self, build_model=True):
+    def merge(self, predict=True):
         """
         Merge the children of this cluster
         """
-        self.reset(build_model)
+        self.reset(predict)
 
 
 

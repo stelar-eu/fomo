@@ -88,18 +88,19 @@ def simulate(df: pd.DataFrame, duration: int, window: int, **kwargs) -> None:
 
         logging.info(f"T={T} - Number of updates: {nupdates}")
 
-        # Build the models after warmup period
+        # Create all predictions after warmup period
         if T == warmup:
             logging.info(f"T={T} - Warmup period over; building models")
-            fomo.build_all_models()
+            fomo.predict_all()
 
-        #     Set that models are built as a new cluster is activated
-            fomo.build_new_models = True
+        #     Set that predictions are redone as a new cluster is activated
+            fomo.maintain_forecasts = True
 
-        # Push the update to the FOMO algorithm
-        fomo.update(new_values)
+        # Run cluster maintenance 
+        fomo.update_clusters(new_values)
 
-        # TODO implement prioritization of retraining of the models here.
+        # Run forecast maintenance
+        fomo.update_forecasts(evaluation_window=5)
 
         # TODO implement measuring of the performance of the models here.
 
@@ -137,7 +138,7 @@ if __name__ == "__main__":
         args = {
             "n_streams":  100,
             "duration":  600,
-            "warmup": 300,
+            "warmup": 10,
             "tau":  1,
             "index":  True,
             "header":  True,
