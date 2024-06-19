@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from methods.fomo import FOMO
+from parameters import Parameters as p
 
 # Setup logger
 FORMAT = '%(asctime)s.%(msecs)03d - [%(levelname)s] %(message)s'
@@ -41,37 +42,31 @@ argparse.add_argument("--index", type=bool, help="Flag to indicate if the input 
 argparse.add_argument("--header", type=bool, help="Flag to indicate if the input file has a header", default=False)
 
 
-def get_data(path: str, **kwargs) -> pd.DataFrame:
+def get_data() -> pd.DataFrame:
     """
     Get data from csv file
     """
-    n_streams = kwargs.get("n_streams", None)
-    duration = kwargs.get("duration", None)
-    warmup = kwargs.get("warmup", 0)
-    header = kwargs.get("header", None)
-    index = kwargs.get("index", None)
-
-    header = 0 if header else None
-    index_col = 0 if index else None
+    header = 0 if p.header else None
+    index_col = 0 if p.index else None
 
     try:
         # Check if n_streams are valid
-        with open(path) as f:
+        with open(p.input_path) as f:
             firstline = f.readline().split(",")
             n_cols = len(firstline)
-            if index: n_cols -= 1
-            if n_streams is not None and n_streams > n_cols:
+            if p.index: n_cols -= 1
+            if p.n_streams is not None and p.n_streams > n_cols:
                 n_streams = n_cols
 
         # Read the data
-        if duration:
-            df = pd.read_csv(path,
+        if p.duration:
+            df = pd.read_csv(p.input_path,
                              header=header,
                              index_col=index_col,
                              usecols=range(n_streams + 1),
-                             nrows=duration + warmup + 1)
+                             nrows=p.duration + p.warmup + 1)
         else:
-            df = pd.read_csv(path,
+            df = pd.read_csv(p.input_path,
                              header=header,
                              index_col=index_col,
                              usecols=range(n_streams + 1))
@@ -81,7 +76,7 @@ def get_data(path: str, **kwargs) -> pd.DataFrame:
         sys.exit(1)
 
     # Parse the dates if index is given
-    if index:
+    if p.index:
         try:
             df.index = pd.to_datetime(df.index)
         except Exception as e:
@@ -94,20 +89,20 @@ def get_data(path: str, **kwargs) -> pd.DataFrame:
     return df
 
 
-def simulate(df: pd.DataFrame, window: int, budget: int, **kwargs) -> None:
+def simulate(df: pd.DataFrame) -> None:
     """
     Simulate a stream and continuously maintain a cluster tree
     """
     m = len(df)
 
-    duration = kwargs.get("duration", math.ceil(m * .9))
-    warmup = kwargs.get("warmup", math.ceil(m * .1))
+    duration = p.duration if p.duration is not None else math.ceil(m * .9)
+    warmup = p.warmup if p.warmup is not None else math.ceil(m * .1)
 
     # Initialize the FOMO algorithm
-    fomo = FOMO(names=df.columns, w=window, metric=metric,
-                tau=kwargs.get("tau", 1),
-                selection_strategy=kwargs.get("selection", 'odac'),
-                prio_strategy=kwargs.get("prioritization", 'rmse')
+    fomo = FOMO(names=df.columns, w=p.window, metric=p.metric,
+                tau=p.tau,
+                selection_strategy=p.selection_strategy,
+                prio_strategy=p.prio_strategy
                 )
 
     T = -1
@@ -151,7 +146,7 @@ def simulate(df: pd.DataFrame, window: int, budget: int, **kwargs) -> None:
             continue
 
         # Get remaining budget
-        remaining_budget = budget - (time.time() - start) * 1000
+        remaining_budget = p.budget - (time.time() - start) * 1000
 
         # TODO DIFFER BETWEEN DEBUG AND INFO LOGGING
 
@@ -166,17 +161,17 @@ def simulate(df: pd.DataFrame, window: int, budget: int, **kwargs) -> None:
     fomo.print_tree()
 
 
-def main(input_path: str, metric: str, window: int, budget: int, **kwargs):
+def main():
     """
     Main function; simulate a stream and continuously maintain a cluster tree
     """
 
     # Load the data
-    df = get_data(input_path, **kwargs)
-    kwargs["n_streams"] = df.shape[1]
+    df = get_data()
+    p.n_streams = df.shape[1]
 
     # Run the stream simulation
-    simulate(df=df, window=window, metric=metric, budget=budget, **kwargs)
+    simulate(df=df)
 
 
 if __name__ == "__main__":
@@ -184,21 +179,35 @@ if __name__ == "__main__":
     logging.info(f"Arguments: {sys.argv}")
 
     if len(sys.argv) == 1:
-        input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly.csv"
-        metric = "manhattan"
-        window = 100
-        budget = 100
-        args = {
-            "n_streams": 100,
-            "duration": 100,
-            "warmup": 30,
-            "selection": 'odac',
-            "prioritization": 'rmse',
-            "tau": 1,
-            "index": True,
-            "header": True,
-        }
-        g = main(input_path, metric, window, budget, **args)
+        p.input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly.csv"
+        p.metric = "manhattan"
+        p.window = 100
+        p.budget = 100
+        p.n_streams = 100
+        p.duration = 100
+        p.warmup = 30
+        p.selection = 'odac'
+        p.prioritization = 'rmse'
+        p.tau = 1
+        p.index = True
+        p.header = True
     else:
         args = argparse.parse_args()
-        main(args.input_path, args.metric, args.window, args.budget, args._get_kwargs())
+        p.input_path = args.input_path
+        p.metric = args.metric
+        p.window = args.window
+        p.budget = args.budget
+        p.n_streams = args.n_streams
+        p.duration = args.duration
+        p.warmup = args.warmup
+        p.selection = args.selection
+        p.prioritization = args.prio
+        p.tau = args.tau
+        p.index = args.index
+        p.header = args.header
+
+    # Do parameters check
+    p.check()
+
+    # Run the main function
+    main()
