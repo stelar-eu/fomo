@@ -31,7 +31,7 @@ class OdacCluster(NodeMixin):
     is_active: bool = True
     local_ids: dict = None  # shape: (n, )
     n_updates: int = 0  # Number of times the statistics have been updated
-    age: int = 0  # Number of time steps since the cluster was created
+    children: list = None  # List of children
 
     # Distance statistics attributes
     d0: float = 0
@@ -52,11 +52,10 @@ class OdacCluster(NodeMixin):
     confidence_level: float = 0.95
     n_min: int = 5
 
-    # Stream attributes
-
     def __post_init__(self):
         assert len(self.ids) > 0
         self.local_ids = {idx: i for i, idx in enumerate(self.ids)}
+        self.children = []
 
         # Initialize the model
         self.names = self.W.columns[self.ids]
@@ -100,7 +99,7 @@ class OdacCluster(NodeMixin):
 
     def is_leaf(self):
         """Check if the cluster is a leaf"""
-        return not self.children
+        return len(self.children) == 0
 
     def is_singleton(self):
         """Check if the cluster is a singleton"""
@@ -112,7 +111,7 @@ class OdacCluster(NodeMixin):
             return [self]
 
         # Get the leaves of the children
-        return self.children[0].get_leaves() + self.children[1].get_leaves()
+        return [c for child in self.children for c in child.get_leaves()]
 
     def deactivate(self):
         """Deactivate the cluster"""
@@ -122,9 +121,8 @@ class OdacCluster(NodeMixin):
         """Get the local distances"""
         return self.D[np.ix_(self.ids, self.ids)]
 
-    """Get the different diameter statistics of the cluster"""
-
     def update_diameter_coefficients(self):
+        """Update the different diameter statistics of the cluster"""
         if self.is_singleton(): return
 
         Dl = self.local_distances()  # shape: (n, n)
@@ -229,6 +227,20 @@ class OdacCluster(NodeMixin):
         c2.parent = self
 
         # Set the current cluster as inactive
+        self.deactivate()
+
+    def split_to_singletons(self, predict=True):
+        """
+        Split the cluster into singleton clusters
+        """
+        for i in self.ids:
+            c = OdacCluster(ids=np.array([i]), D=self.D, W=self.W)
+            self.children.append(c)  # Add the new cluster as a child
+            c.parent = self  # Set the current cluster as parent
+            if predict:
+                c.model.fit_forecast(periods=self.prediction_window)
+
+        # Deactivate this cluster
         self.deactivate()
 
     def check_merge(self):

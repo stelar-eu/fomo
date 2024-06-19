@@ -25,6 +25,14 @@ argparse.add_argument("-n", "--n_streams", type=int, help="Number of streams to 
 argparse.add_argument("-d", "--duration", type=int,
                       help="Duration of the stream; how many timesteps we want to simulate", default=None)
 argparse.add_argument("-m", "--metric", type=str, help="Distance metric to use for clustering", default="euclidean")
+
+argparse.add_argument("--selection", type=str,
+                      help="The strategy for selecting the different models. Choose from [odac, singleton, random]",
+                      default='odac')
+argparse.add_argument("--prio", type=str,
+                      help="The prioritization method for updating the forecasts of different models. Choose from [rmse, random]",
+                      default='rmse')
+
 argparse.add_argument("-t", "--tau", type=float, help="Threshold for the cluster tree", default=1)
 argparse.add_argument("--warmup", type=int, help="Number of time steps after which we will start building models",
                       default=None)
@@ -92,12 +100,15 @@ def simulate(df: pd.DataFrame, window: int, budget: int, **kwargs) -> None:
     """
     m = len(df)
 
-    tau = kwargs.get("tau", 1)
     duration = kwargs.get("duration", math.ceil(m * .9))
     warmup = kwargs.get("warmup", math.ceil(m * .1))
 
     # Initialize the FOMO algorithm
-    fomo = FOMO(names=df.columns, w=window, metric=metric, tau=tau)
+    fomo = FOMO(names=df.columns, w=window, metric=metric,
+                tau=kwargs.get("tau", 1),
+                selection_strategy=kwargs.get("selection", 'odac'),
+                prio_strategy=kwargs.get("prioritization", 'rmse')
+                )
 
     T = -1
 
@@ -181,8 +192,10 @@ if __name__ == "__main__":
         budget = 1000
         args = {
             "n_streams": 100,
-            "duration": 30,
-            "warmup": 10,
+            "duration": 100,
+            "warmup": 5,
+            "selection": 'singleton',
+            "prioritization": 'rmse',
             "tau": 1,
             "index": True,
             "header": True,

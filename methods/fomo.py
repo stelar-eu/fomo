@@ -34,11 +34,22 @@ class FOMO:
 
     # Model attributes
     maintain_forecasts: bool = False  # Flat to update predictions when clusters are split or merged
+
+    # Algorithm strategy attributes
+    selection_strategy: str = 'odac'  # The strategy for selecting the different models
+    prio_strategy: str = 'rmse'  # The prioritization method for updating the forecasts of different models
+
+    # TODO IMPLEMENT THAT THIS STORES THE SQUARED ERRORS AT EACH TIME STEP INSTEAD OF THE ROLLING RMSE
     performance_history: pd.DataFrame = None  # Prediction performance on each stream over time
 
     def __post_init__(self):
         self.n = len(self.names)
         self.distfunc = get_distfunc(self.metric)
+
+        # Check certain parameter values
+        assert self.selection_strategy in ['odac',
+                                           'singleton'], f"Invalid selection strategy: {self.selection_strategy}"
+        assert self.prio_strategy in ['rmse', 'random'], f"Invalid prioritization strategy: {self.prio_strategy}"
 
         # Initialize distance matrix and sliding window
         self.D = np.zeros((self.n, self.n))
@@ -47,8 +58,10 @@ class FOMO:
             index=pd.to_datetime([]),
         )
 
-        # Initialize root node of the tree (the initial cluster) and set
+        # Initialize the clusters and models
         self.root = OdacCluster(ids=np.arange(self.n), D=self.D, W=self.W, tau=self.tau)
+        if self.selection_strategy == 'singleton':
+            self.root.split_to_singletons(self.maintain_forecasts)
 
         #     Initialize the performance history
         self.performance_history = pd.DataFrame(columns=self.names)
@@ -91,6 +104,9 @@ class FOMO:
         """
         Update the FOMO algorithm with a new arrival
         """
+        # Dont change the cluster tree if using singleton strategy
+        if self.selection_strategy == 'singleton': return
+
         # Update the distance matrix
         self.update_distances(old_values, new_values)
 
@@ -162,8 +178,10 @@ class FOMO:
         Prioritize the updating of forecasts by evaluating the models
         """
 
-        # Sort the clusters by their latest RMSE (desc) and filter out models that were just updated
-        filt_clusters = [c for c in self.root.get_leaves() if c.n_updates > 0]
+        # TODO Implement different prioritizations here
+
+        # Sort the clusters by their latest RMSE (desc) and filter out models that were never evaluated or have RMSE 0
+        filt_clusters = [c for c in self.root.get_leaves() if c.model.curr_rmse > 0]
         sorted_clusters = sorted(filt_clusters, key=lambda c: c.model.curr_rmse, reverse=True)
 
         return sorted_clusters
