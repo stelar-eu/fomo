@@ -18,7 +18,7 @@ class OdacCluster(NodeMixin):
 
     # Optional attributes
     freq: str = 'W'  # Frequency of the data
-    prediction_window: int = 40  # Number of periods to forecast
+    prediction_window: int = 100  # Number of periods to forecast
 
     # Inferred attributes
     names: np.ndarray = None  # names of the columns in this cluster

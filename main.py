@@ -10,11 +10,6 @@ import pandas as pd
 from methods.fomo import FOMO
 from parameters import Parameters as p
 
-# Setup logger
-FORMAT = '%(asctime)s.%(msecs)03d - [%(levelname)s] %(message)s'
-logging.basicConfig(format=FORMAT, datefmt='%d/%m/%Y %H:%M:%S')
-logging.getLogger().setLevel(logging.INFO)
-
 # Set up argument parser
 argparse = argparse.ArgumentParser(description="Simulate a stream and continuously maintain a cluster tree")
 argparse.add_argument("-i", "--input_path", type=str, help="Path to the csv file containing the stream data",
@@ -193,22 +188,23 @@ def main():
 
 if __name__ == "__main__":
 
-    logging.info(f"Arguments: {sys.argv}")
+    print(f"Arguments: {sys.argv}")
 
     if len(sys.argv) == 1:
         p.input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly.csv"
         p.output_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/A2_model_manager/src/UCA2_incident_model_management/output"
         p.metric = "manhattan"
         p.window = 100
-        p.budget = 100
+        p.budget = 20
         p.n_streams = 100
-        p.duration = 10
-        p.warmup = 30
-        p.selection_strategy = 'singleton'
-        p.prio_strategy = 'random'
+        p.duration = 100
+        p.warmup = 2
+        p.selection_strategy = 'odac'
+        p.prio_strategy = 'rmse'
         p.tau = 1
         p.index = True
         p.header = True
+        p.print = False
     else:
         args = argparse.parse_args()
         p.input_path = args.input_path

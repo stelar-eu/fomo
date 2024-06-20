@@ -33,6 +33,10 @@ class Parameters:
     tau: float = 1
     index: bool = False
     header: bool = False
+    print: bool = False  # If True the logging will be printed to the console, else it will be saved to a file in the output directory
+
+    # Inferred attributes
+    output_dir: str = None
 
     # Statistics
     # TODO implement
@@ -64,6 +68,26 @@ class Parameters:
                                                  'singleton'], f"Invalid selection strategy: {Parameters.selection_strategy}"
         assert Parameters.prio_strategy in ['rmse',
                                             'random'], f"Invalid prioritization strategy: {Parameters.prio_strategy}"
+
+        #         Create an output directory
+        output_dir = f"{Parameters.output_path}/{int(time.time())}"
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"Saving the run output to {output_dir}")
+        Parameters.output_dir = output_dir
+
+        # Setup logger
+        FORMAT = '%(asctime)s.%(msecs)03d - [%(levelname)s] %(message)s'
+        logging.basicConfig(format=FORMAT, datefmt='%d/%m/%Y %H:%M:%S')
+        logging.getLogger().setLevel(logging.INFO)
+
+        if not Parameters.print:
+            log_path = os.path.join(output_dir, "log.txt")
+            file_handler = logging.FileHandler(log_path)
+            file_handler.setFormatter(logging.Formatter(FORMAT))
+            logging.getLogger().addHandler(file_handler)
+
+            #         Remove printing to the console
+            logging.getLogger().removeHandler(logging.getLogger().handlers[0])
 
     @staticmethod
     def get_stream_rmses():
@@ -143,16 +167,8 @@ class Parameters:
 
     @staticmethod
     def save():
-        #         Create a run identifier by the current timestamp
-        run_id = int(time.time())
-
-        #         Create an output directory
-        outdir = f"{Parameters.output_path}/{run_id}"
-        os.makedirs(outdir, exist_ok=True)
-        logging.info(f"Saving the run output to {outdir}")
-
         #         Save the predictions
-        Parameters.forecast_history.to_csv(f"{outdir}/predictions.csv", index=False)
+        Parameters.forecast_history.to_csv(f"{Parameters.output_dir}/predictions.csv", index=False)
 
         #        Append the parameters and statistics to runs.csv file
         paramdf = pd.DataFrame(Parameters.get_attributes([str, int, bool, float, Stat]), index=[0])
