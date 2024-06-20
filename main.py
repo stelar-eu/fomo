@@ -128,7 +128,7 @@ def simulate(df: pd.DataFrame) -> None:
 
             # Compute the rmse per model if using that as a prioritization metric.
             if fomo.prio_strategy == 'rmse':
-                fomo.evaluate_all(curr_date=new_values_sr.name, evaluation_window=10)
+                fomo.evaluate_all_models(curr_date=new_values_sr.name, evaluation_window=10)
 
         # --------------- PHASE 1: Cluster maintenance ---------------
 
@@ -170,12 +170,25 @@ def main():
     Main function; simulate a stream and continuously maintain a cluster tree
     """
 
+    # Print the parameters
+    p.print_params()
+
     # Load the data
+    logging.info(f"Loading data...")
     df = get_data()
     p.n_streams = df.shape[1]
 
     # Run the stream simulation
     simulate(df=df)
+
+    #     Compute the aggregate statistics
+    p.prepare_stats()
+
+    #     Print the final run statistics
+    p.print_stats()
+
+    #     Save the statistics and parameters
+    p.save()
 
 
 if __name__ == "__main__":
@@ -184,14 +197,15 @@ if __name__ == "__main__":
 
     if len(sys.argv) == 1:
         p.input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly.csv"
+        p.output_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/A2_model_manager/src/UCA2_incident_model_management/output"
         p.metric = "manhattan"
         p.window = 100
         p.budget = 100
         p.n_streams = 100
-        p.duration = 100
+        p.duration = 10
         p.warmup = 30
-        p.selection = 'odac'
-        p.prioritization = 'rmse'
+        p.selection_strategy = 'singleton'
+        p.prio_strategy = 'random'
         p.tau = 1
         p.index = True
         p.header = True
@@ -204,8 +218,8 @@ if __name__ == "__main__":
         p.n_streams = args.n_streams
         p.duration = args.duration
         p.warmup = args.warmup
-        p.selection = args.selection
-        p.prioritization = args.prio
+        p.selection_strategy = args.selection
+        p.prio_strategy = args.prio
         p.tau = args.tau
         p.index = args.index
         p.header = args.header

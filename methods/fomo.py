@@ -200,6 +200,8 @@ class FOMO:
         """
         return np.random.permutation(self.root.get_leaves()).tolist()
 
+    # ------------------------- Forecast evaluation -------------------------
+
     def update_forecast_history(self, new_values: pd.Series) -> None:
         """
         Get the forecasts for the current date and update the forecast_history in Parameters
@@ -233,7 +235,7 @@ class FOMO:
         # Append the forecast to the forecast history
         p.forecast_history = pd.concat([p.forecast_history, pd.DataFrame(rows)], axis=0)
 
-    def evaluate_all(self, curr_date: pd.Timestamp, evaluation_window=5):
+    def evaluate_all_models(self, curr_date: pd.Timestamp, evaluation_window=5):
         """
         Evaluate all active models in the cluster tree by analyzing the forecast history in Parameters
         """
