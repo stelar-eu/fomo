@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from typing import List, Tuple
 
 from methods.distance_function import *
+from methods.model import Model
 from methods.odac_cluster import OdacCluster
+from parameters import Parameters as p
 
 
 @dataclass
@@ -144,7 +146,7 @@ class FOMO:
                 c.split(predict=self.maintain_forecasts)
 
             if action:
-                logging.info(f"New tree after {action} of cluster {c.identifier}:")
+                logging.info(f"New tree after {action} of cluster {c.idx}:")
                 self.root.print_tree()
 
     # ------------------------- Forecast maintenance -------------------------
@@ -170,7 +172,7 @@ class FOMO:
                 logging.info(f"Budget of {budget}ms exceeded; stopping forecast updates")
                 break
 
-            logging.info(f"Updating forecast for cluster {c.identifier} with RMSE {c.model.curr_rmse}")
+            logging.info(f"Updating forecast for cluster {c.idx} with RMSE {c.model.curr_rmse}")
             c.model.fit_forecast(periods=c.prediction_window)
 
     def prioritize_updates(self) -> List[OdacCluster]:
@@ -198,21 +200,59 @@ class FOMO:
         """
         return np.random.permutation(self.root.get_leaves()).tolist()
 
-    def evaluate_all(self, evaluation_window=5):
+    def update_forecast_history(self, new_values: pd.Series) -> None:
         """
-        Evaluate all models in the cluster tree and store the RMSEs
+        Get the forecasts for the current date and update the forecast_history in Parameters
         """
-        ytrue = self.W.iloc[-evaluation_window:]
+        ts = new_values.name
 
-        # Get the RMSE of all models
-        rmse_series = []
+        #     Get the forecasts for each active model
+        rows = []
         for c in self.root.get_leaves():
-            rmse_sr = c.model.evaluate(ytrue)
-            rmse_series.append(rmse_sr)
+            ypred = c.model.get_forecast(ts)
+            if ypred is None:
+                logging.warning(f"No forecast available for cluster {c.idx} on timestamp {ts}")
+                continue
 
-        # Append the RMSEs to the performance history
-        rmse_sr = pd.concat(rmse_series, axis=0).to_frame().T
-        self.performance_history = pd.concat([self.performance_history, rmse_sr], axis=0)
+            # Append the forecast to the forecast history for each stream in the cluster
+            for sid in c.ids:
+                name = self.names[sid]
+                ytrue = new_values[name]
+                row = {
+                    'ds': ts,
+                    'stream_id': sid,
+                    'stream_name': name,
+                    'ypred': ypred,
+                    'ytrue': ytrue,
+                    'squared_error': (ypred - ytrue) ** 2,
+                    'cluster_id': c.idx,
+                    'model_id': c.model.idx
+                }
+                rows.append(row)
+
+        # Append the forecast to the forecast history
+        p.forecast_history = pd.concat([p.forecast_history, pd.DataFrame(rows)], axis=0)
+
+    def evaluate_all(self, curr_date: pd.Timestamp, evaluation_window=5):
+        """
+        Evaluate all active models in the cluster tree by analyzing the forecast history in Parameters
+        """
+        # Create the evaluation window in timestamps
+        eval_ts = Model.date_range(end=curr_date, periods=evaluation_window, freq=self.freq)
+
+        # Get the view of the forecast history
+        view = p.forecast_history[p.forecast_history.ds.isin(eval_ts)]
+
+        #     Get the root mean squared errors of the models
+        rmses = np.sqrt(view.groupby('model_id')['squared_error'].mean())
+
+        #     Get the active models and their rmses
+        for c in self.root.get_leaves():
+            m = c.model
+            if m.idx in rmses.index:
+                m.curr_rmse = rmses[m.idx]
+            else:
+                m.curr_rmse = np.nan
 
     # ------------------------- Misc ---------------------------------------
     def print_tree(self):

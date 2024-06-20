@@ -112,19 +112,23 @@ def simulate(df: pd.DataFrame) -> None:
         T += 1
 
         # Get all updates
-        new_values = df.iloc[T]
-        nupdates = np.count_nonzero(new_values)
+        new_values_sr = df.iloc[T]
+        nupdates = np.count_nonzero(new_values_sr)
 
         logging.info(f"T={T} - Number of updates: {nupdates}")
 
         start = time.time()
 
         # Slide the window
-        old_values, new_values = fomo.update_window(new_values)
+        old_values, new_values = fomo.update_window(new_values_sr)
 
         # Evaluate all models on the new values
         if fomo.maintain_forecasts:
-            fomo.evaluate_all(evaluation_window=10)
+            fomo.update_forecast_history(new_values_sr)
+
+            # Compute the rmse per model if using that as a prioritization metric.
+            if fomo.prio_strategy == 'rmse':
+                fomo.evaluate_all(curr_date=new_values_sr.name, evaluation_window=10)
 
         # --------------- PHASE 1: Cluster maintenance ---------------
 

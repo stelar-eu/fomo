@@ -27,7 +27,7 @@ class OdacCluster(NodeMixin):
     model: Model = None
 
     # Cluster attributes
-    identifier: int = field(default_factory=count().__next__)
+    idx: int = field(default_factory=count().__next__)
     is_active: bool = True
     local_ids: dict = None  # shape: (n, )
     n_updates: int = 0  # Number of times the statistics have been updated
@@ -62,18 +62,21 @@ class OdacCluster(NodeMixin):
         self.model = Model(W=self.W, names=self.names, freq=self.freq)
 
     def __str__(self):
-        string = f"Cluster {self.identifier}: "
+        string = f"Cluster {self.idx}: "
         if self.is_active:
             string += str(self.names.tolist())
         else:
             string += "[INACTIVE]"
         return string
 
+    def __repr__(self):
+        return self.__str__()
+
     def __eq__(self, other):
-        return self.identifier == other.identifier
+        return self.idx == other.idx
 
     def __hash__(self):
-        return hash(self.identifier)
+        return hash(self.idx)
 
     def predict(self):
         """(Re-)Do the predictions of the next periods"""
@@ -181,7 +184,7 @@ class OdacCluster(NodeMixin):
         e = self.hoeffding_bound
 
         if self.delta is None or e is None:
-            logging.info(f"Cluster {self.identifier} has not been initialized yet")
+            logging.info(f"Cluster {self.idx} has not been initialized yet")
             return False
 
         # Check if the Hoeffding bound is violated
@@ -199,7 +202,7 @@ class OdacCluster(NodeMixin):
         x1, y1 = self.d1_ids
 
         logging.info(
-            f"Splitting cluster {self.identifier} with {self.n_updates} observations and pivot indices {self.ids[x1]} and {self.ids[y1]}")
+            f"Splitting cluster {self.idx} with {self.n_updates} observations and pivot indices {self.ids[x1]} and {self.ids[y1]}")
 
         # Assign the observations to the new clusters based on the pivot indices
         c1_ids = self.ids[Dl[x1] < Dl[y1]]
@@ -262,12 +265,12 @@ class OdacCluster(NodeMixin):
         pd1 = self.parent.d1
 
         if d1 is None or pd1 is None or e is None or pe is None:
-            logging.info(f"Cluster {self.identifier} has not been initialized yet")
+            logging.info(f"Cluster {self.idx} has not been initialized yet")
             return False
 
         if (d1 - pd1) > max(e, pe):
             logging.info(
-                f"Merging cluster {self.identifier} with parent {self.parent.identifier}, stats d1: {self.d1}, pd1: {self.parent.d1}, e: {self.hoeffding_bound}, pe: {self.parent.hoeffding_bound}")
+                f"Merging cluster {self.idx} with parent {self.parent.idx}, stats d1: {self.d1}, pd1: {self.parent.d1}, e: {self.hoeffding_bound}, pe: {self.parent.hoeffding_bound}")
 
             self.parent.merge()
             return True
