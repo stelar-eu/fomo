@@ -6,6 +6,8 @@ from typing import Any, List
 import numpy as np
 import pandas as pd
 
+import utils.lib as lib
+
 
 # Create the different parameter types
 class Stat:
@@ -33,7 +35,7 @@ class Parameters:
     tau: float = 1
     index: bool = False
     header: bool = False
-    print: bool = False  # If True the logging will be printed to the console, else it will be saved to a file in the output directory
+    save_logs: bool = False  # If True the logging will be printed to the console, else it will be saved to a file in the output directory
 
     # Inferred attributes
     output_dir: str = None
@@ -49,11 +51,14 @@ class Parameters:
             'ypred': pd.Series(dtype='int'),
             'ytrue': pd.Series(dtype='int'),
             'squared_error': pd.Series(dtype='float'),
+            'ape': pd.Series(dtype='float'),
             'cluster_id': pd.Series(dtype='int'),
             'model_id': pd.Series(dtype='int')})
 
     median_rmse: Stat = None
     mean_rmse: Stat = None
+    median_smape: Stat = None
+    mean_smape: Stat = None
 
     # TODO include different timings as well
 
@@ -66,7 +71,7 @@ class Parameters:
         assert Parameters.window is not None, "No window size provided"
         assert Parameters.selection_strategy in ['odac',
                                                  'singleton'], f"Invalid selection strategy: {Parameters.selection_strategy}"
-        assert Parameters.prio_strategy in ['rmse',
+        assert Parameters.prio_strategy in ['rmse', 'smape',
                                             'random'], f"Invalid prioritization strategy: {Parameters.prio_strategy}"
 
         #         Create an output directory
@@ -80,43 +85,29 @@ class Parameters:
         logging.basicConfig(format=FORMAT, datefmt='%d/%m/%Y %H:%M:%S')
         logging.getLogger().setLevel(logging.INFO)
 
-        if not Parameters.print:
+        if not Parameters.save_logs:
             log_path = os.path.join(output_dir, "log.txt")
             file_handler = logging.FileHandler(log_path)
             file_handler.setFormatter(logging.Formatter(FORMAT))
             logging.getLogger().addHandler(file_handler)
 
             #         Remove printing to the console
-            logging.getLogger().removeHandler(logging.getLogger().handlers[0])
+            # logging.getLogger().removeHandler(logging.getLogger().handlers[0])
 
     @staticmethod
-    def get_stream_rmses():
+    def get_rmses(df, gb: str = 'stream_name'):
         """
-        Get the per-stream RMSE of all forecasts
+        Get the RMSE of all forecasts
         """
-        return np.sqrt(Parameters.forecast_history.groupby(['stream_name']).squared_error.mean())
+        return np.sqrt(df.groupby(gb).squared_error.mean())
 
     @staticmethod
-    def print_line():
+    def get_smapes(df, gb: str = 'stream_name'):
         """
-        Print a line
+        Get the sMAPE for all forecasts
+        sMAPE = 2 * |ytrue - ypred| / (|ytrue| + |ypred|) * 100
         """
-        logging.info("-" * 50)
-
-    @staticmethod
-    def roundfloat(x, decimals=3):
-        """
-        Round a float to certain decimals
-        """
-        return round(x, decimals) if type(x) == float else x
-
-    @staticmethod
-    def printdict(d):
-        """
-        Print a dictionary
-        """
-        for k, v in d.items():
-            logging.info(f"{k}: {v}")
+        return df.groupby(gb).ape.mean()
 
     @staticmethod
     def get_attributes(allowed_types: List[Any] = None):
@@ -125,11 +116,11 @@ class Parameters:
         """
         annos = Parameters.__annotations__
         if allowed_types:
-            return {k: Parameters.roundfloat(v) for k, v in Parameters.__dict__.items() if
+            return {k: lib.roundfloat(v) for k, v in Parameters.__dict__.items() if
                     k in annos.keys() and
                     annos[k] in allowed_types}
         else:
-            return {k: Parameters.roundfloat(v) for k, v in Parameters.__dict__.items() if
+            return {k: lib.roundfloat(v) for k, v in Parameters.__dict__.items() if
                     k in Parameters.__annotations__.keys()}
 
     @staticmethod
@@ -139,10 +130,10 @@ class Parameters:
         """
         paramdict = Parameters.get_attributes(allowed_types=[int, float, str, bool])
 
-        Parameters.print_line()
+        lib.print_line()
         logging.info(f"Parameters:")
-        Parameters.printdict(paramdict)
-        Parameters.print_line()
+        lib.printdict(paramdict)
+        lib.print_line()
 
     @staticmethod
     def prepare_stats():
@@ -150,9 +141,14 @@ class Parameters:
         Prepare the statistics
         """
         # Calculate the median and mean RMSE
-        stream_rmses = Parameters.get_stream_rmses()
+        stream_rmses = Parameters.get_rmses(df=Parameters.forecast_history)
         Parameters.median_rmse = stream_rmses.median()
         Parameters.mean_rmse = stream_rmses.mean()
+
+        # Calculate the median and mean sMAPE
+        stream_smapes = Parameters.get_smapes(df=Parameters.forecast_history)
+        Parameters.median_smape = stream_smapes.median()
+        Parameters.mean_smape = stream_smapes.mean()
 
     @staticmethod
     def print_stats():
@@ -160,10 +156,10 @@ class Parameters:
         Print the run statistics
         """
         statdict = Parameters.get_attributes(allowed_types=[Stat])
-        Parameters.print_line()
+        lib.print_line()
         logging.info(f"Run statistics:")
-        Parameters.printdict(statdict)
-        Parameters.print_line()
+        lib.printdict(statdict)
+        lib.print_line()
 
     @staticmethod
     def save():

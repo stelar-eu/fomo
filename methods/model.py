@@ -26,7 +26,7 @@ class Model:
     # Model attributes
     idx: int = field(default_factory=count().__next__)
     agg_forecasts: pd.Series = None  # Aggregate forecasts made by the model, indexed by the timestamps
-    curr_rmse: float = None  # Latest RMSE of the model
+    curr_kpi: float = None  # Latest KPI of the model
 
     # ------------- Helper functions -------------
     @staticmethod
@@ -157,7 +157,7 @@ class Model:
         rmses = np.sqrt(np.mean((ytrue.values - ypred.values) ** 2, axis=0))
 
         # Set the average RMSE as the current RMSE
-        self.curr_rmse = np.mean(rmses)
+        self.curr_kpi = np.mean(rmses)
 
         rmses = pd.Series(rmses, index=self.names)
         return rmses

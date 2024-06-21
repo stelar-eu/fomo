@@ -51,20 +51,20 @@ def get_data() -> pd.DataFrame:
             n_cols = len(firstline)
             if p.index: n_cols -= 1
             if p.n_streams is not None and p.n_streams > n_cols:
-                n_streams = n_cols
+                p.n_streams = n_cols
 
         # Read the data
         if p.duration:
             df = pd.read_csv(p.input_path,
                              header=header,
                              index_col=index_col,
-                             usecols=range(n_streams + 1),
+                             usecols=range(p.n_streams + 1),
                              nrows=p.duration + p.warmup + 1)
         else:
             df = pd.read_csv(p.input_path,
                              header=header,
                              index_col=index_col,
-                             usecols=range(n_streams + 1))
+                             usecols=range(p.n_streams + 1))
     except Exception as e:
         logging.error(
             f"Error while reading data: {e}, data should be in csv format with columns [Date, Stream1, Stream2, ...]")
@@ -122,7 +122,7 @@ def simulate(df: pd.DataFrame) -> None:
             fomo.update_forecast_history(new_values_sr)
 
             # Compute the rmse per model if using that as a prioritization metric.
-            if fomo.prio_strategy == 'rmse':
+            if fomo.prio_strategy != 'random':
                 fomo.evaluate_all_models(curr_date=new_values_sr.name, evaluation_window=10)
 
         # --------------- PHASE 1: Cluster maintenance ---------------
@@ -146,6 +146,8 @@ def simulate(df: pd.DataFrame) -> None:
 
         # Get remaining budget
         remaining_budget = p.budget - (time.time() - start) * 1000
+
+        # TODO CHANGE RMSE TO RELATIVE ERROR (INVARIANT TO RANGE)
 
         # TODO DIFFER BETWEEN DEBUG AND INFO LOGGING
 
@@ -191,20 +193,20 @@ if __name__ == "__main__":
     print(f"Arguments: {sys.argv}")
 
     if len(sys.argv) == 1:
-        p.input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly.csv"
+        p.input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly_syn_r.csv"
         p.output_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/A2_model_manager/src/UCA2_incident_model_management/output"
         p.metric = "manhattan"
         p.window = 100
         p.budget = 20
         p.n_streams = 100
-        p.duration = 100
-        p.warmup = 2
-        p.selection_strategy = 'odac'
-        p.prio_strategy = 'rmse'
+        p.duration = 200
+        p.warmup = 150
+        p.selection_strategy = 'singleton'
+        p.prio_strategy = 'smape'
         p.tau = 1
-        p.index = True
-        p.header = True
-        p.print = False
+        p.index = False
+        p.header = False
+        p.save_logs = False
     else:
         args = argparse.parse_args()
         p.input_path = args.input_path

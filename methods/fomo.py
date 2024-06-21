@@ -39,9 +39,8 @@ class FOMO:
 
     # Algorithm strategy attributes
     selection_strategy: str = 'odac'  # The strategy for selecting the different models
-    prio_strategy: str = 'rmse'  # The prioritization method for updating the forecasts of different models
+    prio_strategy: str = 'smape'  # The prioritization method for updating the forecasts of different models
 
-    # TODO IMPLEMENT THAT THIS STORES THE SQUARED ERRORS AT EACH TIME STEP INSTEAD OF THE ROLLING RMSE
     performance_history: pd.DataFrame = None  # Prediction performance on each stream over time
 
     def __post_init__(self):
@@ -51,7 +50,8 @@ class FOMO:
         # Check certain parameter values
         assert self.selection_strategy in ['odac',
                                            'singleton'], f"Invalid selection strategy: {self.selection_strategy}"
-        assert self.prio_strategy in ['rmse', 'random'], f"Invalid prioritization strategy: {self.prio_strategy}"
+        assert self.prio_strategy in ['rmse', 'smape',
+                                      'random'], f"Invalid prioritization strategy: {self.prio_strategy}"
 
         # Initialize distance matrix and sliding window
         self.D = np.zeros((self.n, self.n))
@@ -172,7 +172,7 @@ class FOMO:
                 logging.info(f"Budget of {budget}ms exceeded; stopping forecast updates")
                 break
 
-            logging.info(f"Updating forecast for cluster {c.idx} with RMSE {c.model.curr_rmse}")
+            logging.info(f"Updating forecast for cluster {c.idx} with KPI {c.model.curr_kpi}")
             c.model.fit_forecast(periods=c.prediction_window)
 
     def prioritize_updates(self) -> List[OdacCluster]:
@@ -180,17 +180,17 @@ class FOMO:
         Prioritize the updating of forecasts using the specified strategy
         """
 
-        if self.prio_strategy == 'rmse':
-            return self.prioritize_updates_rmse()
+        if self.prio_strategy == 'rmse' or self.prio_strategy == 'smape':
+            return self.prioritize_updates_kpi()
         elif self.prio_strategy == 'random':
             return self.prioritize_updates_random()
         else:
             raise ValueError(f"Invalid prioritization strategy: {self.prio_strategy}")
 
-    def prioritize_updates_rmse(self) -> List[OdacCluster]:
-        # Sort the clusters by their latest RMSE (desc) and filter out models that were never evaluated or have RMSE 0
-        filt_clusters = [c for c in self.root.get_leaves() if c.model.curr_rmse is not None and c.model.curr_rmse > 0]
-        sorted_clusters = sorted(filt_clusters, key=lambda c: c.model.curr_rmse, reverse=True)
+    def prioritize_updates_kpi(self) -> List[OdacCluster]:
+        # Sort the clusters by their latest KPI (desc) and filter out models that were never evaluated or have KPI 0
+        filt_clusters = [c for c in self.root.get_leaves() if c.model.curr_kpi is not None and c.model.curr_kpi > 0]
+        sorted_clusters = sorted(filt_clusters, key=lambda c: c.model.curr_kpi, reverse=True)
 
         return sorted_clusters
 
@@ -220,6 +220,8 @@ class FOMO:
             for sid in c.ids:
                 name = self.names[sid]
                 ytrue = new_values[name]
+                denum = np.abs(ytrue) + np.abs(ypred)
+                ape = 0 if denum == 0 else 2 * np.abs(ytrue - ypred) / denum * 100
                 row = {
                     'ds': ts,
                     'stream_id': sid,
@@ -227,6 +229,7 @@ class FOMO:
                     'ypred': ypred,
                     'ytrue': ytrue,
                     'squared_error': (ypred - ytrue) ** 2,
+                    'ape': ape,
                     'cluster_id': c.idx,
                     'model_id': c.model.idx
                 }
@@ -245,16 +248,21 @@ class FOMO:
         # Get the view of the forecast history
         view = p.forecast_history[p.forecast_history.ds.isin(eval_ts)]
 
-        #     Get the root mean squared errors of the models
-        rmses = np.sqrt(view.groupby('model_id')['squared_error'].mean())
+        # Get the kpi relevant to the prioritization strategy for each of the models
+        if self.prio_strategy == 'rmse':
+            kpis = p.get_rmses(view, gb='model_id')
+        elif self.prio_strategy == 'smape':
+            kpis = p.get_smapes(view, gb='model_id')
+        else:
+            raise ValueError(f"Invalid prioritization strategy: {self.prio_strategy} for evaluating models.")
 
-        #     Get the active models and their rmses
+        #     Get the active models and their kpis
         for c in self.root.get_leaves():
             m = c.model
-            if m.idx in rmses.index:
-                m.curr_rmse = rmses[m.idx]
+            if m.idx in kpis.index:
+                m.curr_kpi = kpis[m.idx]
             else:
-                m.curr_rmse = np.nan
+                m.curr_kpi = np.nan
 
     # ------------------------- Misc ---------------------------------------
     def print_tree(self):
