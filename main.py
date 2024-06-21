@@ -54,7 +54,7 @@ def get_data() -> pd.DataFrame:
             firstline = f.readline().split(",")
             n_cols = len(firstline)
             if p.index: n_cols -= 1
-            if p.n_streams is not None and p.n_streams > n_cols:
+            if p.n_streams is None or p.n_streams > n_cols:
                 p.n_streams = n_cols
 
         # Read the data
@@ -62,13 +62,13 @@ def get_data() -> pd.DataFrame:
             df = pd.read_csv(p.input_path,
                              header=header,
                              index_col=index_col,
-                             usecols=range(p.n_streams + 1),
+                             usecols=range(p.n_streams),
                              nrows=p.duration + p.warmup + 1)
         else:
             df = pd.read_csv(p.input_path,
                              header=header,
                              index_col=index_col,
-                             usecols=range(p.n_streams + 1))
+                             usecols=range(p.n_streams))
     except Exception as e:
         logging.error(
             f"Error while reading data: {e}, data should be in csv format with columns [Date, Stream1, Stream2, ...]")

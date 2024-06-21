@@ -94,7 +94,7 @@ If no parameters are provided, default values will be used.
 #### Example Command
 
 ```bash
-python main.py --input_path "path/to/input.csv" --output_path "path/to/output" --metric "manhattan" --window 100 --budget 20 --n_streams 300 --duration 800 --warmup 100 --selection "odac" --prio "smape" --tau 1 --index False --header False --save_logs False --loglevel "INFO"
+python main.py --input_path "path/to/input.csv" --output_path "path/to/output" --metric "manhattan" --window 100 --budget 20 --n_streams 300 --duration 800 --warmup 100 --selection "odac" --prio "smape" --tau 1 --index --header --save_logs False --loglevel "INFO"
 ```
 
 ### Main Function
@@ -111,6 +111,15 @@ The main function orchestrates the following steps:
 
 The script uses Python's `logging` module to provide information about the execution process. L
 ogs can be saved to a file if `save_logs` is set to `True`.
+
+### Output
+
+The output of the script includes:
+
+- **Run Statistics:** The final statistics and parameters of the run, including the total time taken, the number of models updated, and
+  the total number of models. This information is printed to the console and saved to `runs.csv`.
+- **Log File:** A log file containing information about the execution process if `save_logs` is set to `True`. The log file is saved as `output_dir/{timestamp}/log.txt`.
+- **Predictions:** The predictions made by the models for each time step for each time series. The predictions are saved as `output_dir/{timestamp}/predictions.csv`.
 
 ## Contributing
 
