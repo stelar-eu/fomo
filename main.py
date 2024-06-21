@@ -1,6 +1,7 @@
 import argparse
 import logging
 import math
+import os
 import sys
 import time
 
@@ -14,27 +15,30 @@ from parameters import Parameters as p
 argparse = argparse.ArgumentParser(description="Simulate a stream and continuously maintain a cluster tree")
 argparse.add_argument("-i", "--input_path", type=str, help="Path to the csv file containing the stream data",
                       required=True)
-argparse.add_argument("-w", "--window", type=int, help="Window size for the stream", required=True)
+argparse.add_argument("-o", "--output_path", type=str, help="Path to the output directory", default=os.getcwd())
 argparse.add_argument("-b", "--budget", type=int,
-                      help="Time budget in ms we have every timestep to manage & maintain forecasts", required=True)
+                      help="Time budget in ms we have every timestep to manage & maintain forecasts", default=20)
+argparse.add_argument("-w", "--window", type=int, help="Window size for the stream", default=100)
 argparse.add_argument("-n", "--n_streams", type=int, help="Number of streams to consider", default=None)
 argparse.add_argument("-d", "--duration", type=int,
-                      help="Duration of the stream; how many timesteps we want to simulate", default=None)
-argparse.add_argument("-m", "--metric", type=str, help="Distance metric to use for clustering", default="euclidean")
+                      help="Duration of the stream; how many timesteps we want to simulate", default=100)
+argparse.add_argument("-m", "--metric", type=str, help="Distance metric to use for clustering", default="manhattan")
 
 argparse.add_argument("--selection", type=str,
                       help="The strategy for selecting the different models. Choose from [odac, singleton, random]",
                       default='odac')
 argparse.add_argument("--prio", type=str,
-                      help="The prioritization method for updating the forecasts of different models. Choose from [rmse, random]",
-                      default='rmse')
+                      help="The prioritization method for updating the forecasts of different models. Choose from [rmse, smape random]",
+                      default='smape')
 
 argparse.add_argument("-t", "--tau", type=float, help="Threshold for the cluster tree", default=1)
 argparse.add_argument("--warmup", type=int, help="Number of time steps after which we will start building models",
-                      default=None)
+                      default=30)
 argparse.add_argument("--index", type=bool, help="Flag to indicate if the input file has an index column",
                       default=False)
 argparse.add_argument("--header", type=bool, help="Flag to indicate if the input file has a header", default=False)
+argparse.add_argument("--loglevel", type=str, help="Log level for the logger", default='INFO')
+argparse.add_argument("--savelogs", type=bool, help="Flag to indicate if the logs should be saved", default=False)
 
 
 def get_data() -> pd.DataFrame:
@@ -194,18 +198,20 @@ if __name__ == "__main__":
         p.metric = "manhattan"
         p.window = 100
         p.budget = 20
-        p.n_streams = 100
-        p.duration = 200
-        p.warmup = 150
+        p.n_streams = 300
+        p.duration = 800
+        p.warmup = 100
         p.selection_strategy = 'odac'
         p.prio_strategy = 'smape'
-        p.tau = 3
+        p.tau = 1
         p.index = False
         p.header = False
         p.save_logs = False
+        p.loglevel = 'INFO'
     else:
         args = argparse.parse_args()
         p.input_path = args.input_path
+        p.output_path = args.output_path
         p.metric = args.metric
         p.window = args.window
         p.budget = args.budget
@@ -217,6 +223,8 @@ if __name__ == "__main__":
         p.tau = args.tau
         p.index = args.index
         p.header = args.header
+        p.save_logs = args.savelogs
+        p.loglevel = args.loglevel
 
     # Do parameters check
     p.check()

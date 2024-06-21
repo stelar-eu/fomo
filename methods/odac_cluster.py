@@ -7,6 +7,7 @@ import pandas as pd
 from anytree import NodeMixin, RenderTree
 
 from methods.model import Model
+from parameters import Parameters as p
 
 
 @dataclass
@@ -18,10 +19,10 @@ class OdacCluster(NodeMixin):
 
     # Optional attributes
     freq: str = 'W'  # Frequency of the data
-    prediction_window: int = 200  # Number of periods to forecast
 
     # Inferred attributes
     names: np.ndarray = None  # names of the columns in this cluster
+    prediction_window: int = None  # Number of periods to forecast
 
     # Model attributes
     model: Model = None
@@ -56,6 +57,7 @@ class OdacCluster(NodeMixin):
         assert len(self.ids) > 0
         self.local_ids = {idx: i for i, idx in enumerate(self.ids)}
         self.children = []
+        self.prediction_window = p.duration
 
         # Initialize the model
         self.names = self.W.columns[self.ids]
