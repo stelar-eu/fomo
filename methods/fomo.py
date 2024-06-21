@@ -146,8 +146,8 @@ class FOMO:
                 c.split(predict=self.maintain_forecasts)
 
             if action:
-                logging.info(f"New tree after {action} of cluster {c.idx}:")
-                self.root.print_tree()
+                logging.debug(f"New tree after {action} of cluster {c.idx}:")
+                logging.debug(self.root.print_tree())
 
     # ------------------------- Forecast maintenance -------------------------
     def update_forecasts(self, budget: float) -> None:
@@ -169,10 +169,10 @@ class FOMO:
         # Update the forecasts until the budget is exceeded
         for c in sorted_clusters:
             if (time.time() - start) * 1000 > budget:
-                logging.info(f"Budget of {budget}ms exceeded; stopping forecast updates")
+                logging.debug(f"Budget of {budget}ms exceeded; stopping forecast updates")
                 break
 
-            logging.info(f"Updating forecast for cluster {c.idx} with KPI {c.model.curr_kpi}")
+            logging.info(f"Updating forecast for cluster {c.idx} with {self.prio_strategy}={c.model.curr_kpi}")
             c.model.fit_forecast(periods=c.prediction_window)
 
     def prioritize_updates(self) -> List[OdacCluster]:
@@ -269,4 +269,4 @@ class FOMO:
         """
         Print the tree
         """
-        self.root.print_tree()
+        return self.root.print_tree()

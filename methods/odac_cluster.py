@@ -91,9 +91,11 @@ class OdacCluster(NodeMixin):
         #     Do predictions model if necessary
         if predict: self.predict()
 
-    def print_tree(self):
+    def print_tree(self) -> str:
+        out = []
         for pre, fill, node in RenderTree(self):
-            logging.info(f"{pre}{node}")
+            out.append(f"{pre}{node}")
+        return "\n".join(out)
 
     def is_leaf(self):
         """Check if the cluster is a leaf"""
@@ -201,7 +203,7 @@ class OdacCluster(NodeMixin):
         # Get the pivot indices
         x1, y1 = self.d1_ids
 
-        logging.info(
+        logging.debug(
             f"Splitting cluster {self.idx} with {self.n_updates} observations and pivot indices {self.ids[x1]} and {self.ids[y1]}")
 
         # Assign the observations to the new clusters based on the pivot indices
@@ -269,7 +271,7 @@ class OdacCluster(NodeMixin):
             return False
 
         if (d1 - pd1) > max(e, pe):
-            logging.info(
+            logging.debug(
                 f"Merging cluster {self.idx} with parent {self.parent.idx}, stats d1: {self.d1}, pd1: {self.parent.d1}, e: {self.hoeffding_bound}, pe: {self.parent.hoeffding_bound}")
 
             self.parent.merge()

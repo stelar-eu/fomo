@@ -24,6 +24,7 @@ class Parameters:
     window: int = None
 
     # Optional attributes
+    loglevel: str = 'INFO'
     output_path: str = os.getcwd()
     budget: int = 100
     metric: str = "euclidean"
@@ -83,7 +84,7 @@ class Parameters:
         # Setup logger
         FORMAT = '%(asctime)s.%(msecs)03d - [%(levelname)s] %(message)s'
         logging.basicConfig(format=FORMAT, datefmt='%d/%m/%Y %H:%M:%S')
-        logging.getLogger().setLevel(logging.INFO)
+        logging.getLogger().setLevel(Parameters.loglevel)
 
         if not Parameters.save_logs:
             log_path = os.path.join(output_dir, "log.txt")

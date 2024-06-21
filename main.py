@@ -147,19 +147,15 @@ def simulate(df: pd.DataFrame) -> None:
         # Get remaining budget
         remaining_budget = p.budget - (time.time() - start) * 1000
 
-        # TODO CHANGE RMSE TO RELATIVE ERROR (INVARIANT TO RANGE)
-
-        # TODO DIFFER BETWEEN DEBUG AND INFO LOGGING
-
         # Run forecast maintenance
         if remaining_budget > 0:
-            logging.info(f"T={T} - Remaining budget for updating forecasts: {remaining_budget}")
+            logging.debug(f"T={T} - Remaining budget for updating forecasts: {remaining_budget}")
             fomo.update_forecasts(budget=remaining_budget)
         else:
-            logging.warning(f"T={T} - No budget left for updating forecasts")
+            logging.debug(f"T={T} - No budget left for updating forecasts")
 
     logging.info(f"Final tree:")
-    fomo.print_tree()
+    logging.info(fomo.print_tree())
 
 
 def main():
@@ -201,9 +197,9 @@ if __name__ == "__main__":
         p.n_streams = 100
         p.duration = 200
         p.warmup = 150
-        p.selection_strategy = 'singleton'
+        p.selection_strategy = 'odac'
         p.prio_strategy = 'smape'
-        p.tau = 1
+        p.tau = 3
         p.index = False
         p.header = False
         p.save_logs = False
