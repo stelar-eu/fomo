@@ -60,6 +60,19 @@ command:
 pip install -r requirements.txt
 ```
 
+### Input Data
+
+The input data should be in CSV format, with each row representing a time step and each column representing a time series.
+For example, the input data could look like this:
+
+```csv
+timestamp,ts1,ts2,ts3
+01-01-2000,10,20,30
+02-01-2000,15,25,35
+03-01-2000,20,30,40
+...
+```
+
 ### Parameters
 
 The FOMO application accepts several parameters to customize its behavior. Here's an overview of all the parameters:
