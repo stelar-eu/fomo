@@ -57,7 +57,7 @@ class OdacCluster(NodeMixin):
         assert len(self.ids) > 0
         self.local_ids = {idx: i for i, idx in enumerate(self.ids)}
         self.children = []
-        self.prediction_window = p.duration
+        self.prediction_window = p.duration + p.warmup
 
         # Initialize the model
         self.names = self.W.columns[self.ids]
