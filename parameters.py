@@ -56,9 +56,7 @@ class Parameters:
             'cluster_id': pd.Series(dtype='int'),
             'model_id': pd.Series(dtype='int')})
 
-    median_rmse: Stat = None
     mean_rmse: Stat = None
-    median_smape: Stat = None
     mean_smape: Stat = None
 
     # TODO include different timings as well
@@ -72,8 +70,7 @@ class Parameters:
         assert Parameters.window is not None, "No window size provided"
         assert Parameters.selection_strategy in ['odac',
                                                  'singleton'], f"Invalid selection strategy: {Parameters.selection_strategy}"
-        assert Parameters.prio_strategy in ['rmse', 'smape',
-                                            'random'], f"Invalid prioritization strategy: {Parameters.prio_strategy}"
+        assert Parameters.prio_strategy in ['rmse', 'smape', 'random'], f"Invalid prioritization strategy: {Parameters.prio_strategy}"
 
         #         Create an output directory
         output_dir = f"{Parameters.output_path}/{int(time.time())}"
@@ -86,7 +83,7 @@ class Parameters:
         logging.basicConfig(format=FORMAT, datefmt='%d/%m/%Y %H:%M:%S')
         logging.getLogger().setLevel(Parameters.loglevel)
 
-        if not Parameters.save_logs:
+        if Parameters.save_logs:
             log_path = os.path.join(output_dir, "log.txt")
             file_handler = logging.FileHandler(log_path)
             file_handler.setFormatter(logging.Formatter(FORMAT))
@@ -141,14 +138,12 @@ class Parameters:
         """
         Prepare the statistics
         """
-        # Calculate the median and mean RMSE
+        # Calculate the mean RMSE
         stream_rmses = Parameters.get_rmses(df=Parameters.forecast_history)
-        Parameters.median_rmse = stream_rmses.median()
         Parameters.mean_rmse = stream_rmses.mean()
 
-        # Calculate the median and mean sMAPE
+        # Calculate the mean sMAPE
         stream_smapes = Parameters.get_smapes(df=Parameters.forecast_history)
-        Parameters.median_smape = stream_smapes.median()
         Parameters.mean_smape = stream_smapes.mean()
 
     @staticmethod

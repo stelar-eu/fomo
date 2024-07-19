@@ -116,8 +116,6 @@ def simulate(df: pd.DataFrame) -> None:
 
         logging.info(f"T={T} - Number of updates: {nupdates}")
 
-        start = time.time()
-
         # Slide the window
         old_values, new_values = fomo.update_window(new_values_sr)
 
@@ -148,15 +146,8 @@ def simulate(df: pd.DataFrame) -> None:
             fomo.maintain_forecasts = True
             continue
 
-        # Get remaining budget
-        remaining_budget = p.budget - (time.time() - start) * 1000
-
         # Run forecast maintenance
-        if remaining_budget > 0:
-            logging.debug(f"T={T} - Remaining budget for updating forecasts: {remaining_budget}")
-            fomo.update_forecasts(budget=remaining_budget)
-        else:
-            logging.debug(f"T={T} - No budget left for updating forecasts")
+        fomo.update_forecasts(budget=p.budget)
 
     logging.info(f"Final tree:")
     logging.info(fomo.print_tree())
@@ -193,19 +184,19 @@ if __name__ == "__main__":
     print(f"Arguments: {sys.argv}")
 
     if len(sys.argv) == 1:
-        p.input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly.csv"
+        p.input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly_syn_r.csv"
         p.output_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/A2_model_manager/src/UCA2_incident_model_management/output"
         p.metric = "manhattan"
         p.window = 300
         p.budget = 20
-        p.n_streams = 13
-        p.duration = 100
-        p.warmup = 200
-        p.selection_strategy = 'odac'
+        p.n_streams = 300
+        p.duration = 200
+        p.warmup = 100
+        p.selection_strategy = 'singleton'
         p.prio_strategy = 'smape'
-        p.tau = 1
-        p.index = True
-        p.header = True
+        p.tau = 2
+        p.index = False
+        p.header = False
         p.save_logs = True
         p.loglevel = 'DEBUG'
     else:

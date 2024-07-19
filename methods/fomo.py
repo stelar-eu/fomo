@@ -50,8 +50,7 @@ class FOMO:
         # Check certain parameter values
         assert self.selection_strategy in ['odac',
                                            'singleton'], f"Invalid selection strategy: {self.selection_strategy}"
-        assert self.prio_strategy in ['rmse', 'smape',
-                                      'random'], f"Invalid prioritization strategy: {self.prio_strategy}"
+        assert self.prio_strategy in ['rmse', 'smape', 'random'], f"Invalid prioritization strategy: {self.prio_strategy}"
 
         # Initialize distance matrix and sliding window
         self.D = np.zeros((self.n, self.n))
@@ -132,9 +131,9 @@ class FOMO:
 
             # Check if the cluster needs to split or merge
             action = None
-            if c.check_merge():
-                action = "merge"
-            elif c.check_split():
+            # if c.check_merge():
+            #     action = "merge"
+            if c.check_split():
                 action = "split"
 
             # Perform the action
@@ -200,7 +199,7 @@ class FOMO:
 
     def prioritize_updates_kpi(self) -> List[OdacCluster]:
         # Sort the clusters by their latest KPI (desc) and filter out models that were never evaluated or have KPI 0
-        filt_clusters = [c for c in self.root.get_leaves() if c.model.curr_kpi is not None and c.model.curr_kpi > 0]
+        filt_clusters = [c for c in self.root.get_leaves() if c.model.curr_kpi is not None]
         sorted_clusters = sorted(filt_clusters, key=lambda c: c.model.curr_kpi, reverse=True)
 
         return sorted_clusters
@@ -209,7 +208,7 @@ class FOMO:
         """
         Prioritize the updating of forecasts randomly
         """
-        return np.random.permutation(self.root.get_leaves()).tolist()
+        return self.root.get_leaves()
 
     # ------------------------- Forecast evaluation -------------------------
 
@@ -262,7 +261,7 @@ class FOMO:
         # Get the kpi relevant to the prioritization strategy for each of the models
         if self.prio_strategy == 'rmse':
             kpis = p.get_rmses(view, gb='model_id')
-        elif self.prio_strategy == 'smape':
+        elif self.prio_strategy in ['smape']:
             kpis = p.get_smapes(view, gb='model_id')
         else:
             raise ValueError(f"Invalid prioritization strategy: {self.prio_strategy} for evaluating models.")

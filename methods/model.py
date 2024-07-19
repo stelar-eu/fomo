@@ -125,39 +125,3 @@ class Model:
             return self.agg_forecasts.loc[ts]
         except KeyError:
             return None
-
-    def evaluate(self, ytrue: pd.DataFrame) -> pd.Series:
-        """
-        Evaluate the predictions of the model using RMSE
-
-        Parameters
-        ----------
-        ytrue : pd.DataFrame
-            The true values of ALL streams over a period, not just the ones used for the model
-        """
-        assert self.agg_forecasts is not None, "No predictions available"
-
-        # Get the predictions
-        ypred = self.agg_forecasts
-
-        # Get the predictions for which we have true values
-        # Get the intersection between the indices
-        itsec = ypred.index.intersection(ytrue.index)
-
-        # Check that we have at least one prediction
-        assert itsec.shape[0] > 0, "No intersection between the predictions and the true values"
-
-        ypred = ypred.loc[itsec].to_frame()
-        ytrue = ytrue.loc[itsec]
-
-        # Slice to the streams of the model
-        ytrue = ytrue[self.names]
-
-        # Calculate the RMSE
-        rmses = np.sqrt(np.mean((ytrue.values - ypred.values) ** 2, axis=0))
-
-        # Set the average RMSE as the current RMSE
-        self.curr_kpi = np.mean(rmses)
-
-        rmses = pd.Series(rmses, index=self.names)
-        return rmses
