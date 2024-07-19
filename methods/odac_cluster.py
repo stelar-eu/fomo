@@ -22,7 +22,7 @@ class OdacCluster(NodeMixin):
 
     # Inferred attributes
     names: np.ndarray = None  # names of the columns in this cluster
-    prediction_window: int = None  # Number of periods to forecast
+    prediction_window: int = 20  # Number of periods to forecast
 
     # Model attributes
     model: Model = None
@@ -57,7 +57,6 @@ class OdacCluster(NodeMixin):
         assert len(self.ids) > 0
         self.local_ids = {idx: i for i, idx in enumerate(self.ids)}
         self.children = []
-        self.prediction_window = p.duration + p.warmup
 
         # Initialize diameter statistics
         self.update_diameter_coefficients()

@@ -192,9 +192,9 @@ if __name__ == "__main__":
         p.n_streams = 300
         p.duration = 200
         p.warmup = 100
-        p.selection_strategy = 'singleton'
+        p.selection_strategy = 'odac'
         p.prio_strategy = 'smape'
-        p.tau = 2
+        p.tau = 3
         p.index = False
         p.header = False
         p.save_logs = True

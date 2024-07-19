@@ -131,8 +131,8 @@ class FOMO:
 
             # Check if the cluster needs to split or merge
             action = None
-            # if c.check_merge():
-            #     action = "merge"
+            if c.check_merge():
+                action = "merge"
             if c.check_split():
                 action = "split"
 
@@ -223,8 +223,7 @@ class FOMO:
         for c in self.root.get_leaves():
             ypred = c.model.get_forecast(ts)
             if ypred is None:
-                logging.warning(f"No forecast available for cluster {c.idx} on timestamp {ts}")
-                continue
+                ypred = 0
 
             # Append the forecast to the forecast history for each stream in the cluster
             for sid in c.ids:
