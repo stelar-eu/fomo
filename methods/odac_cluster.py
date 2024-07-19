@@ -44,7 +44,7 @@ class OdacCluster(NodeMixin):
     delta: float = 0
     davg: float = 0
 
-    hoeffding_bound: float = None
+    hoeffding_bound: float = np.inf
     min_value: float = 0
     max_value: float = -np.inf
     Rsq: float = None
@@ -58,6 +58,9 @@ class OdacCluster(NodeMixin):
         self.local_ids = {idx: i for i, idx in enumerate(self.ids)}
         self.children = []
         self.prediction_window = p.duration + p.warmup
+
+        # Initialize diameter statistics
+        self.update_diameter_coefficients()
 
         # Initialize the model
         self.names = self.W.columns[self.ids]
@@ -139,16 +142,20 @@ class OdacCluster(NodeMixin):
         self.d0 = Dl[self.d0_ids]
 
         # Get the maximum distance
-        d1_idflat = np.nanargmax(Dl)
-        self.d1_ids = np.unravel_index(d1_idflat, dshape)
-        self.d1 = Dl[self.d1_ids]
+        self.d1 = np.nanmax(Dl)
+        max_ids_x, max_ids_y = np.where(Dl == self.d1)
+        self.d1_ids = (max_ids_x[0], max_ids_y[0])
+
+        # Remove the largest distance
+        Dl[max_ids_x, max_ids_y] = -np.inf
 
         # Get the 2nd maximum distance
-        Dl[self.d1_ids] = -np.inf
         d2_idflat = np.nanargmax(Dl)
         self.d2_ids = np.unravel_index(d2_idflat, dshape)
         self.d2 = Dl[self.d2_ids]
-        Dl[self.d1_ids] = self.d1
+
+        # Reset the maximum distance
+        Dl[max_ids_x, max_ids_y] = self.d1
 
         self.delta = self.d1 - self.d2
 
@@ -212,6 +219,11 @@ class OdacCluster(NodeMixin):
         c1_ids = self.ids[Dl[x1] < Dl[y1]]
         c2_ids = self.ids[Dl[x1] >= Dl[y1]]
 
+        # Edge case: all distances are the same so cluster should be split into singletons
+        if len(c1_ids) == 0 or len(c2_ids) == 0:
+            self.split_to_singletons(predict)
+            return
+
         # Create new clusters
         c1 = OdacCluster(ids=c1_ids, D=self.D, W=self.W)
         c2 = OdacCluster(ids=c2_ids, D=self.D, W=self.W)
@@ -228,6 +240,10 @@ class OdacCluster(NodeMixin):
         c1.parent = self
         c2.parent = self
 
+        # Initialize hoeffding bounds
+        c1.hoeffding_bound = self.hoeffding_bound
+        c2.hoeffding_bound = self.hoeffding_bound
+
         # Set the current cluster as inactive
         self.deactivate()
 
@@ -239,6 +255,9 @@ class OdacCluster(NodeMixin):
             c = OdacCluster(ids=np.array([i]), D=self.D, W=self.W)
             self.children.append(c)  # Add the new cluster as a child
             c.parent = self  # Set the current cluster as parent
+
+            # Initialize hoeffding bounds
+            c.hoeffding_bound = self.hoeffding_bound
             if predict:
                 c.model.fit_forecast(periods=self.prediction_window)
 

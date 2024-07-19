@@ -193,21 +193,21 @@ if __name__ == "__main__":
     print(f"Arguments: {sys.argv}")
 
     if len(sys.argv) == 1:
-        p.input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly_syn_r.csv"
+        p.input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly.csv"
         p.output_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/A2_model_manager/src/UCA2_incident_model_management/output"
         p.metric = "manhattan"
-        p.window = 100
+        p.window = 300
         p.budget = 20
-        p.n_streams = 300
-        p.duration = 800
-        p.warmup = 100
+        p.n_streams = 13
+        p.duration = 100
+        p.warmup = 200
         p.selection_strategy = 'odac'
         p.prio_strategy = 'smape'
         p.tau = 1
-        p.index = False
-        p.header = False
-        p.save_logs = False
-        p.loglevel = 'INFO'
+        p.index = True
+        p.header = True
+        p.save_logs = True
+        p.loglevel = 'DEBUG'
     else:
         args = argparse.parse_args()
         p.input_path = args.input_path

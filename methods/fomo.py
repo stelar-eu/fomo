@@ -63,7 +63,7 @@ class FOMO:
         # Initialize the clusters and models
         self.root = OdacCluster(ids=np.arange(self.n), D=self.D, W=self.W, tau=self.tau)
         if self.selection_strategy == 'singleton':
-            self.root.split_to_singletons(self.maintain_forecasts)
+            self.root.split_to_singletons(predict=False)
 
         #     Initialize the performance history
         self.performance_history = pd.DataFrame(columns=self.names)
@@ -130,8 +130,6 @@ class FOMO:
             # Update the statistics of the cluster
             c.update_stats(new_values)
 
-            # TODO: MAKE SURE TO ONLY TO THE CHECKS IF WE STILL HAVE BUDGET TO CREATE NEW MODELS
-
             # Check if the cluster needs to split or merge
             action = None
             if c.check_merge():
@@ -148,6 +146,19 @@ class FOMO:
             if action:
                 logging.debug(f"New tree after {action} of cluster {c.idx}:")
                 logging.debug(self.root.print_tree())
+
+    def split_full_tree(self):
+        """
+        Split the full tree into singletons
+        """
+        queue = [self.root]
+        while queue:
+            c = queue.pop(0)
+            if c.is_singleton():
+                continue
+            
+            c.split(predict=self.maintain_forecasts)
+            queue.extend(c.children)
 
     # ------------------------- Forecast maintenance -------------------------
     def update_forecasts(self, budget: float) -> None:
