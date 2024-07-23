@@ -21,7 +21,6 @@ class FOMO:
     # Optional attributes
     freq: str = 'W'  # Frequency of the data
     metric: str = 'euclidean'  # Distance metric
-    tau: float = 1  # Threshold for the cluster tree
 
     # Inferred attributes
     n: int = 0  # Number of streams
@@ -60,7 +59,7 @@ class FOMO:
         )
 
         # Initialize the clusters and models
-        self.root = OdacCluster(ids=np.arange(self.n), D=self.D, W=self.W, tau=self.tau)
+        self.root = OdacCluster(ids=np.arange(self.n), D=self.D, W=self.W, freq=self.freq)
         if self.selection_strategy == 'singleton':
             self.root.split_to_singletons(predict=False)
 
@@ -131,10 +130,10 @@ class FOMO:
 
             # Check if the cluster needs to split or merge
             action = None
-            if c.check_merge():
-                action = "merge"
             if c.check_split():
                 action = "split"
+            elif c.check_merge():
+                action = "merge"
 
             # Perform the action
             if action == "merge":
@@ -142,9 +141,9 @@ class FOMO:
             elif action == "split":
                 c.split(predict=self.maintain_forecasts)
 
-            if action:
-                logging.debug(f"New tree after {action} of cluster {c.idx}:")
-                logging.debug(self.root.print_tree())
+            # if action:
+                # logging.debug(f"New tree after {action} of cluster {c.idx}:")
+                # logging.debug(self.root.print_tree())
 
     def split_full_tree(self):
         """
@@ -222,9 +221,6 @@ class FOMO:
         rows = []
         for c in self.root.get_leaves():
             ypred = c.model.get_forecast(ts)
-            if ypred is None:
-                ypred = 0
-
             # Append the forecast to the forecast history for each stream in the cluster
             for sid in c.ids:
                 name = self.names[sid]

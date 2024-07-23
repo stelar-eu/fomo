@@ -99,9 +99,9 @@ def simulate(df: pd.DataFrame) -> None:
 
     # Initialize the FOMO algorithm
     fomo = FOMO(names=df.columns, w=p.window, metric=p.metric,
-                tau=p.tau,
                 selection_strategy=p.selection_strategy,
-                prio_strategy=p.prio_strategy
+                prio_strategy=p.prio_strategy,
+                freq=p.resolution,
                 )
 
     T = -1
@@ -184,21 +184,22 @@ if __name__ == "__main__":
     print(f"Arguments: {sys.argv}")
 
     if len(sys.argv) == 1:
-        p.input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/weekly_syn_r.csv"
+        p.input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/products_and_hazards.csv"
         p.output_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/A2_model_manager/src/UCA2_incident_model_management/output"
         p.metric = "manhattan"
-        p.window = 300
-        p.budget = 20
+        p.window = 50
+        p.budget = 500
         p.n_streams = 300
-        p.duration = 200
+        p.duration = 180
         p.warmup = 100
         p.selection_strategy = 'odac'
-        p.prio_strategy = 'smape'
-        p.tau = 3
-        p.index = False
-        p.header = False
+        p.prio_strategy = 'rmse'
+        p.tau = 2
+        p.index = True
+        p.header = True
         p.save_logs = True
-        p.loglevel = 'DEBUG'
+        p.loglevel = logging.DEBUG
+        p.resolution = 'M'
     else:
         args = argparse.parse_args()
         p.input_path = args.input_path

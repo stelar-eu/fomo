@@ -49,9 +49,8 @@ class OdacCluster(NodeMixin):
     max_value: float = -np.inf
     Rsq: float = None
 
-    tau: float = 1
     confidence_level: float = 0.95
-    n_min: int = 5
+    n_min: int = 3
 
     def __post_init__(self):
         assert len(self.ids) > 0
@@ -198,7 +197,7 @@ class OdacCluster(NodeMixin):
             return False
 
         # Check if the Hoeffding bound is violated
-        if (self.delta > e) or (self.tau > e):
+        if (self.delta > e) or (p.tau > e):
             if ((self.d1 - self.d0) * abs((self.d1 - self.davg) - (self.davg - self.d0))) > e:
                 return True
 
@@ -224,8 +223,8 @@ class OdacCluster(NodeMixin):
             return
 
         # Create new clusters
-        c1 = OdacCluster(ids=c1_ids, D=self.D, W=self.W)
-        c2 = OdacCluster(ids=c2_ids, D=self.D, W=self.W)
+        c1 = OdacCluster(ids=c1_ids, D=self.D, W=self.W, freq=self.freq)
+        c2 = OdacCluster(ids=c2_ids, D=self.D, W=self.W, freq=self.freq)
 
         # Predict if necessary
         if predict:

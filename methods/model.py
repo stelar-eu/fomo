@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass, field
 from itertools import count
+from scipy import stats
 
 import numpy as np
 import pandas as pd
@@ -8,6 +9,9 @@ from prophet import Prophet
 
 logging.getLogger("cmdstanpy").disabled = True  # turn 'cmdstanpy' logs off
 logging.getLogger("prophet").disabled = True  # turn 'cmdstanpy' logs off
+
+# Turn off pandas warning
+pd.options.mode.chained_assignment = None  # default='warn'
 
 
 @dataclass
@@ -73,13 +77,22 @@ class Model:
         # Get and aggregate the data
         Wf = self.W[self.names]
 
+        # Remove outliers (z-score > 3 or < -3)
+        z = np.abs(stats.zscore(Wf))
+        eps = 3
+        Wf[(z > eps)] = np.nan
+
         if self.agg_function == 'avg':
+            # y = np.nanmean(Wf, axis=1)
             y = Wf.mean(axis=1)
         elif self.agg_function == 'sum':
+            # y = np.nansum(Wf, axis=1)
             y = Wf.sum(axis=1)
         elif self.agg_function == 'max':
+            # y = np.nanmax(Wf, axis=1)
             y = Wf.max(axis=1)
         elif self.agg_function == 'min':
+            # y = np.nanmin(Wf, axis=1)
             y = Wf.min(axis=1)
         else:
             raise ValueError("Invalid aggregation function")
@@ -109,7 +122,7 @@ class Model:
         ypred = ypred['yhat']
 
         # Make things non-negative integers 
-        ypred = ypred.round().astype(int)
+        # ypred = ypred.round().astype(int)
         ypred[ypred < 0] = 0
 
         # Store the predictions
@@ -124,4 +137,4 @@ class Model:
         try:
             return self.agg_forecasts.loc[ts]
         except KeyError:
-            return None
+            return 0

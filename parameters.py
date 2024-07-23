@@ -34,6 +34,7 @@ class Parameters:
     selection_strategy: str = 'odac'
     prio_strategy: str = 'rmse'
     tau: float = 1
+    resolution: str = "W" # Resolution of the data
     index: bool = False
     header: bool = False
     save_logs: bool = False  # If True the logging will be printed to the console, else it will be saved to a file in the output directory
@@ -97,7 +98,7 @@ class Parameters:
         """
         Get the RMSE of all forecasts
         """
-        return np.sqrt(df.groupby(gb).squared_error.mean())
+        return np.sqrt(df.groupby(gb).squared_error.median())
 
     @staticmethod
     def get_smapes(df, gb: str = 'stream_name'):
