@@ -4,53 +4,65 @@ import math
 import os
 import sys
 import time
+import json
 
 import numpy as np
 import pandas as pd
 
 from methods.fomo import FOMO
-from parameters import Parameters as p
+from parameters import Parameters as p, Stat
+import utils.minio_client as mc
 
-# Set up argument parser
-argparse = argparse.ArgumentParser(description="Simulate a stream and continuously maintain a cluster tree")
-argparse.add_argument("-i", "--input_path", type=str, help="Path to the csv file containing the stream data",
-                      required=True)
-argparse.add_argument("-o", "--output_path", type=str, help="Path to the output directory", default=os.getcwd())
-argparse.add_argument("-b", "--budget", type=int,
-                      help="Time budget in ms we have every timestep to manage & maintain forecasts", default=20)
-argparse.add_argument("-w", "--window", type=int, help="Window size for the stream", default=100)
-argparse.add_argument("-n", "--n_streams", type=int, help="Number of streams to consider", default=None)
-argparse.add_argument("-d", "--duration", type=int,
-                      help="Duration of the stream; how many timesteps we want to simulate", default=100)
-argparse.add_argument("-m", "--metric", type=str, help="Distance metric to use for clustering", default="manhattan")
+# # Set up argument parser
+# argparse = argparse.ArgumentParser(description="Simulate a stream and continuously maintain a cluster tree")
+# argparse.add_argument("-i", "--input_path", type=str, help="Path to the csv file containing the stream data",
+#                       required=True)
+# argparse.add_argument("-o", "--output_path", type=str, help="Path to the output directory", default=os.getcwd())
+# argparse.add_argument("-b", "--budget", type=int,
+#                       help="Time budget in ms we have every timestep to manage & maintain forecasts", default=20)
+# argparse.add_argument("-w", "--window", type=int, help="Window size for the stream", default=100)
+# argparse.add_argument("-n", "--n_streams", type=int, help="Number of streams to consider", default=None)
+# argparse.add_argument("-d", "--duration", type=int,
+#                       help="Duration of the stream; how many timesteps we want to simulate", default=100)
+# argparse.add_argument("-m", "--metric", type=str, help="Distance metric to use for clustering", default="manhattan")
 
-argparse.add_argument("--selection", type=str,
-                      help="The strategy for selecting the different models. Choose from [odac, singleton, random]",
-                      default='odac')
-argparse.add_argument("--prio", type=str,
-                      help="The prioritization method for updating the forecasts of different models. Choose from [rmse, smape random]",
-                      default='smape')
+# argparse.add_argument("--selection", type=str,
+#                       help="The strategy for selecting the different models. Choose from [odac, singleton, random]",
+#                       default='odac')
+# argparse.add_argument("--prio", type=str,
+#                       help="The prioritization method for updating the forecasts of different models. Choose from [rmse, smape random]",
+#                       default='smape')
 
-argparse.add_argument("-t", "--tau", type=float, help="Threshold for the cluster tree", default=1)
-argparse.add_argument("--warmup", type=int, help="Number of time steps after which we will start building models",
-                      default=30)
-argparse.add_argument("--index", type=bool, help="Flag to indicate if the input file has an index column",
-                      default=False)
-argparse.add_argument("--header", type=bool, help="Flag to indicate if the input file has a header", default=False)
-argparse.add_argument("--loglevel", type=str, help="Log level for the logger", default='INFO')
-argparse.add_argument("--savelogs", type=bool, help="Flag to indicate if the logs should be saved", default=False)
+# argparse.add_argument("-t", "--tau", type=float, help="Threshold for the cluster tree", default=1)
+# argparse.add_argument("--warmup", type=int, help="Number of time steps after which we will start building models",
+#                       default=30)
+# argparse.add_argument("--index", type=bool, help="Flag to indicate if the input file has an index column",
+#                       default=False)
+# argparse.add_argument("--header", type=bool, help="Flag to indicate if the input file has a header", default=False)
+# argparse.add_argument("--loglevel", type=str, help="Log level for the logger", default='INFO')
+# argparse.add_argument("--savelogs", type=bool, help="Flag to indicate if the logs should be saved", default=False)
 
 
 def get_data() -> pd.DataFrame:
     """
     Get data from csv file
     """
+
+    tmp_path = "/tmp/data.csv"
+
+    # First download the data from MinIO to a temporary location
+    response = p.minio_client.get_object(p.input_path, tmp_path)
+
+    if 'error' in response:
+        logging.error(f"Error while downloading data: {response['message']}")
+        sys.exit(1)
+
     header = 0 if p.header else None
     index_col = 0 if p.index else None
 
     try:
         # Check if n_streams are valid
-        with open(p.input_path) as f:
+        with open(tmp_path) as f:
             firstline = f.readline().split(",")
             n_cols = len(firstline)
             if p.index: n_cols -= 1
@@ -59,13 +71,13 @@ def get_data() -> pd.DataFrame:
 
         # Read the data
         if p.duration:
-            df = pd.read_csv(p.input_path,
+            df = pd.read_csv(tmp_path,
                              header=header,
                              index_col=index_col,
                              usecols=range(p.n_streams),
                              nrows=p.duration + p.warmup + 1)
         else:
-            df = pd.read_csv(p.input_path,
+            df = pd.read_csv(tmp_path,
                              header=header,
                              index_col=index_col,
                              usecols=range(p.n_streams))
@@ -153,7 +165,7 @@ def simulate(df: pd.DataFrame) -> None:
     logging.info(fomo.print_tree())
 
 
-def main():
+def run():
     """
     Main function; simulate a stream and continuously maintain a cluster tree
     """
@@ -178,48 +190,93 @@ def main():
     #     Save the statistics and parameters
     p.save()
 
+    return {
+        "message": "Stream simulation completed successfully!",
+        "output": [{
+            "path": p.output_path,
+            "name": "Directory containing the output files"
+        }],
+        "metrics": p.get_attributes([str, int, bool, float, Stat]),
+        "status": 200
+    }
+
+
+"""
+    Example input json:
+
+    {
+        "docket_image": "alexdarancio/fomo:latest",
+        "input": [{
+            "path": "XXXXXXXXX-bucket/2824af95-1467-4b0b-b12a-21eba4c3ac0f.csv",
+            "name": "List of time series data"
+        }],
+        "parameters": {
+            "budget": 20,
+            "window": 100,
+        },
+        "tags": ["fomo", "forecasting", "time-series"]
+    }
+"""
+
+"""
+    Example output json:
+        {
+            "message": "Stream simulation completed successfully!",
+            "output": [
+            {
+                "path": "XXXXXXXXX-bucket/simulation.log",
+                "name": "Log file for the simulation"
+            },
+            {
+                "path": "XXXXXXXXX-bucket/predictions.csv",
+                "name": "Predictions for the stream"
+            }]
+            "metrics": {
+                "mean_rmse": 0.1,
+                "mean_smape": 0.2
+            },
+            "status": 200
+        }
+"""
 
 if __name__ == "__main__":
 
     print(f"Arguments: {sys.argv}")
 
-    if len(sys.argv) == 1:
-        p.input_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/data/products_and_hazards.csv"
-        p.output_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/1.Agroknow/A2_model_manager/src/UCA2_incident_model_management/output"
-        p.metric = "manhattan"
-        p.window = 50
-        p.budget = 500
-        p.n_streams = 300
-        p.duration = 180
-        p.warmup = 100
-        p.selection_strategy = 'odac'
-        p.prio_strategy = 'rmse'
-        p.tau = 2
-        p.index = True
-        p.header = True
-        p.save_logs = True
-        p.loglevel = logging.DEBUG
-        p.resolution = 'M'
-    else:
-        args = argparse.parse_args()
-        p.input_path = args.input_path
-        p.output_path = args.output_path
-        p.metric = args.metric
-        p.window = args.window
-        p.budget = args.budget
-        p.n_streams = args.n_streams
-        p.duration = args.duration
-        p.warmup = args.warmup
-        p.selection_strategy = args.selection
-        p.prio_strategy = args.prio
-        p.tau = args.tau
-        p.index = args.index
-        p.header = args.header
-        p.save_logs = args.savelogs
-        p.loglevel = args.loglevel
+    if len(sys.argv) == 1: # Test run
+        sys.argv = [
+            'main.py',
+            'resources/input.json',
+            'resources/output.json'
+        ]
+    elif len(sys.argv) != 3:
+        raise ValueError("Please provide 2 files.")
+    
+    input_json_path = sys.argv[1]
+    output_json_path = sys.argv[2]
 
-    # Do parameters check
+    with open(input_json_path) as o:
+        input_json = json.load(o)
+
+    # Parse the input json
+    try:
+        p.input_path = input_json['input'][0]['path']
+        p.output_path = input_json['parameters']['output_path']
+        p.minio_id = input_json['minio']['id']
+        p.minio_key = input_json['minio']['key']
+        p.minio_skey = input_json['minio'].get('secret_key', None)
+        p.minio_url = input_json['minio']['endpoint_url']
+    except KeyError as e:
+        raise ValueError(f"Missing key in input json: {e}")
+    
+    for key, value in input_json['parameters'].items():
+        if key == 'output_path':
+            continue
+        setattr(p, key, value)
+
+    # Check the parameters
     p.check()
 
-    # Run the main function
-    main()
+    response = run()
+    with open(sys.argv[2], 'w') as o:
+        o.write(json.dumps(response, indent=4))

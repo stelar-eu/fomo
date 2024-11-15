@@ -30,30 +30,31 @@ $t$.
 
 # Solution description
 
-*Summary:* The time series are not independent and we want to exploit this fact to reduce the number of models that have
-to be updated and potentially increase their overall performance.
-
+*Summary:* The time series are not independent and we want to exploit this fact to reduce the number of models that have to be updated and potentially increase their overall performance.
 The solution involves two main steps:
 
-1. **Model selection/management:** Deciding and maintaining the partitioning $P$ based on the correlation between the
-   time series and the past performance of the models.
-2. **Model prioritization:** Deciding which models to update based on the previous performance of the models and the
-   time taken to update the model them.
+1. **Model selection/management:** Deciding and maintaining the partitioning $P$ based on the correlation between the time series and the past performance of the models.
+2. **Model prioritization:** Deciding which models to update based on the previous performance of the models and the time taken to update the model them.
 
-## Model selection/management
-
+### Model selection/management
 For model selection and management, we want to cluster the time series in such a way that time series in the same
 cluster are similar and can be modeled by the same model without a significant loss in performance.
 Furthermore, in order to maintain the clustering over time, we want to use a hierarchical clustering algorithm that
 allows us to split/merge clusters as new data comes in and correlations between time series change.
+For this, we will use the ODAC algorithm [1], which is a hierarchical clustering algorithm for streaming data that allows us to continuously update the clustering as new data comes in.
+The algorithm has shown to be effective in clustering time series data streams and is able to handle large datasets with high dimensionality.
+Furthermore, the algorithm is able to handle missing values in the data, which is crucial for our use case as the data is not complete and we want to be able to handle missing values in the time series.
 
-## Model prioritization
+[1] Rodrigues, Pedro Pereira, Joao Gama, and Joao Pedroso. "Hierarchical clustering of time-series data streams." IEEE transactions on knowledge and data engineering 20.5 (2008): 615-627.
 
+### Model prioritization
 For model prioritization, we want to prioritize the models that have the highest expected error in the next time step
 and that can be updated within the time budget.
 Given the assumption that all time series have the same number of data points and therefore the same time taken to
-update the model, we can simply order the models based on their average performance since their last update and update
-the models until the time budget is exhausted.
+update the model, we can simply order the models based on their average performance since their last update and update the models until the time budget is exhausted.
+Performance can be measured using the RMSE or sMAPE, as described in the evaluation plan.
+To ensure that the models and the KPIs used to prioritize them can adapt to changes in the data (e.g., new trends, concept drift), we use a sliding window approach to calculate the performance of the models.
+Specifically, we use a time window of the last $w$ time steps to calculate the performance of the models and update the models based on this performance.
 
 # Implementation plan
 

@@ -1,0 +1,35 @@
+{
+    "message": "Stream simulation completed successfully!",
+    "output": [
+        {
+            "path": "agroknow/A2/output/test",
+            "name": "Directory containing the output files"
+        }
+    ],
+    "metrics": {
+        "input_path": "agroknow/A2/monthly.csv",
+        "output_path": "agroknow/A2/output/test",
+        "minio_id": "b7qqc9p1JpKRY7Z7GYXA",
+        "minio_key": "xu9gwGYDFYbdDKHKR3bI5N4SSOsT9OlrnHcFOFKH",
+        "minio_skey": null,
+        "minio_url": "https://api-s3-ak.stelar.gr",
+        "loglevel": 20,
+        "window": 100,
+        "budget": 20,
+        "metric": "manhattan",
+        "n_streams": 12,
+        "duration": 10,
+        "warmup": 10,
+        "selection_strategy": "singleton",
+        "prio_strategy": "random",
+        "tau": 2,
+        "resolution": "M",
+        "index": true,
+        "header": true,
+        "save_logs": true,
+        "output_dir": "output/1731672530",
+        "mean_rmse": 2.190932922282574,
+        "mean_smape": 101.66666666666667
+    },
+    "status": 200
+}

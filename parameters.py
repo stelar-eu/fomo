@@ -3,11 +3,12 @@ import os
 import time
 from typing import Any, List
 
+from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
 import utils.lib as lib
-
+from utils.minio_client import MinioClient
 
 # Create the different parameter types
 class Stat:
@@ -21,29 +22,33 @@ class Hide:
 class Parameters:
     # Required attributes (to be set)
     input_path: str = None
-    window: int = None
+    output_path: str = None
+    minio_id: str = None
+    minio_key: str = None
+    minio_skey: str = None
+    minio_url: str = None
 
     # Optional attributes
-    loglevel: str = 'INFO'
-    output_path: str = os.getcwd()
-    budget: int = 100
-    metric: str = "euclidean"
-    n_streams: int = None
-    duration: int = None
-    warmup: int = 0
+    loglevel: int = logging.INFO
+    window: int = 100
+    budget: int = 50
+    metric: str = "manhattan"
+    n_streams: int = 300
+    duration: int = 100
+    warmup: int = 100
     selection_strategy: str = 'odac'
     prio_strategy: str = 'rmse'
-    tau: float = 1
-    resolution: str = "W" # Resolution of the data
-    index: bool = False
-    header: bool = False
-    save_logs: bool = False  # If True the logging will be printed to the console, else it will be saved to a file in the output directory
+    tau: float = 2
+    resolution: str = "M" # Resolution of the data
+    index: bool = True
+    header: bool = True
+    save_logs: bool = True  # If True the logging will be printed to the console, else it will be saved to a file in the output directory
 
     # Inferred attributes
     output_dir: str = None
+    minio_client: MinioClient = None
 
     # Statistics
-    # TODO implement
     # DataFrame storing the used predictions for each of the streams over time.
     forecast_history: Hide = pd.DataFrame(
         {
@@ -60,8 +65,6 @@ class Parameters:
     mean_rmse: Stat = None
     mean_smape: Stat = None
 
-    # TODO include different timings as well
-
     @staticmethod
     def check():
         """
@@ -74,7 +77,7 @@ class Parameters:
         assert Parameters.prio_strategy in ['rmse', 'smape', 'random'], f"Invalid prioritization strategy: {Parameters.prio_strategy}"
 
         #         Create an output directory
-        output_dir = f"{Parameters.output_path}/{int(time.time())}"
+        output_dir = f"output/{int(time.time())}"
         os.makedirs(output_dir, exist_ok=True)
         print(f"Saving the run output to {output_dir}")
         Parameters.output_dir = output_dir
@@ -92,6 +95,9 @@ class Parameters:
 
             #         Remove printing to the console
             # logging.getLogger().removeHandler(logging.getLogger().handlers[0])
+
+        # Initialize the MinIO client
+        Parameters.minio_client = MinioClient(Parameters.minio_url, Parameters.minio_id, Parameters.minio_key, Parameters.minio_skey)
 
     @staticmethod
     def get_rmses(df, gb: str = 'stream_name'):
@@ -163,9 +169,8 @@ class Parameters:
         #         Save the predictions
         Parameters.forecast_history.to_csv(f"{Parameters.output_dir}/predictions.csv", index=False)
 
-        #        Append the parameters and statistics to runs.csv file
-        paramdf = pd.DataFrame(Parameters.get_attributes([str, int, bool, float, Stat]), index=[0])
+        # Upload the predictions and logs to MinIO
+        Parameters.minio_client.put_object(f"{Parameters.output_path}/predictions.csv", f"{Parameters.output_dir}/predictions.csv")
 
-        param_path = os.path.join(Parameters.output_path, "runs.csv")
-        mode = 'a' if os.path.exists(param_path) else 'w'
-        paramdf.to_csv(param_path, mode=mode, index=False, header=mode == 'w')
+        if Parameters.save_logs:
+            Parameters.minio_client.put_object(f"{Parameters.output_path}/log.txt", f"{Parameters.output_dir}/log.txt")       

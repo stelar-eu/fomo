@@ -1,0 +1,22 @@
+{
+    "docket_image": "alexdarancio/fomo:latest",
+    "input": [{
+        "path": "agroknow/A2/monthly.csv",
+        "name": "List of time series data"
+    }],
+    "parameters": {
+        "output_path": "agroknow/A2/output/test",
+        "budget": 20,
+        "window": 100,
+        "duration": 10,
+        "warmup": 10,
+        "prio_strategy": "random",
+        "selection_strategy": "singleton"
+    },
+    "minio": {
+        "id": "b7qqc9p1JpKRY7Z7GYXA",
+        "key": "xu9gwGYDFYbdDKHKR3bI5N4SSOsT9OlrnHcFOFKH",
+        "endpoint_url": "https://api-s3-ak.stelar.gr"
+    },
+    "tags": ["fomo", "forecasting", "time-series"]
+}
