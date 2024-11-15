@@ -7,7 +7,7 @@ import pandas as pd
 from anytree import NodeMixin, RenderTree
 
 from methods.model import Model
-from parameters import Parameters as p
+from src.parameters import Parameters as p
 
 
 @dataclass

@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from methods.fomo import FOMO
-from parameters import Parameters as p, Stat
+from src.parameters import Parameters as p, Stat
 import utils.minio_client as mc
 
 # # Set up argument parser
