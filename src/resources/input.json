@@ -1,11 +1,8 @@
 {
     "docket_image": "alexdarancio/fomo:latest",
-    "input": [{
-        "path": "agroknow/A2/monthly.csv",
-        "name": "List of time series data"
-    }],
+    "input": ["s3://klms-bucket/monthly.csv"],
     "parameters": {
-        "output_path": "agroknow/A2/output/test",
+        "output_path": "s3://klms-bucket/fomo-test",
         "budget": 20,
         "window": 100,
         "duration": 10,
@@ -14,9 +11,10 @@
         "selection_strategy": "singleton"
     },
     "minio": {
-        "id": "b7qqc9p1JpKRY7Z7GYXA",
-        "key": "xu9gwGYDFYbdDKHKR3bI5N4SSOsT9OlrnHcFOFKH",
-        "endpoint_url": "https://api-s3-ak.stelar.gr"
-    },
+        "id": "I1820QXVJWM31IVKUMXM",
+        "key": "aZzebH+GqpBL7rmZ2mqwoR6Wx6e911gVpiPkkx6q",
+        "skey": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3NLZXkiOiJJMTgyMFFYVkpXTTMxSVZLVU1YTSIsImFjciI6IjEiLCJhdWQiOlsibWluaW8iLCJhY2NvdW50Il0sImF1dGhfdGltZSI6MTczMjA5Mzc0NywiYXpwIjoic3RlbGFyLWFwaSIsImVtYWlsIjoiai5lLmQuaG9uZHRAdHVlLm5sIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImV4cCI6MTczMjE4MDYwMiwiZmFtaWx5X25hbWUiOiJkJ0hvbmR0IiwiZ2l2ZW5fbmFtZSI6IkplbnMiLCJpYXQiOjE3MzIwOTM3NDcsImlzcyI6Imh0dHBzOi8va2MtZGV2LnN0ZWxhci5nci9yZWFsbXMvbWFzdGVyIiwianRpIjoiYzQ1NGRiODItN2VjZi00MWYwLWI1NTgtMzkzYzY3MWM4NTQ1IiwibmFtZSI6IkplbnMgZCdIb25kdCIsInBvbGljeSI6ImNvbnNvbGVBZG1pbiIsInByZWZlcnJlZF91c2VybmFtZSI6ImpkaG9uZHQiLCJyZWFsbV9hY2Nlc3MiOnsicm9sZXMiOlsiZGVmYXVsdC1yb2xlcy1tYXN0ZXIiLCJvZmZsaW5lX2FjY2VzcyIsInVtYV9hdXRob3JpemF0aW9uIl19LCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIiwidmlldy1wcm9maWxlIl19LCJtaW5pbyI6eyJyb2xlcyI6WyJjb25zb2xlQWRtaW4iXX19LCJzY29wZSI6Im9wZW5pZCBlbWFpbCBwcm9maWxlIG1pbmlvX2F1dGhfc2NvcGUiLCJzaWQiOiI3MjM1NDIwMC0zYjZiLTQ0NTEtOTJiYy0xNDhkNGY4YzFhYzYiLCJzdWIiOiJiMmVlMTI2Ny1lMWQxLTRkOTAtYjEyZS02MWI5MGUxM2Q1NWQiLCJ0eXAiOiJCZWFyZXIifQ.QHDgHlzKloidBRuZ3EhnCOhqGwt6DAsb0SeWNLdcr8T-ykueTg91toi9zHjgSzP3SQSVZ9l0grsQNBDCbEC4lg",
+        "endpoint_url": "https://minio-dev.stelar.gr"
+  },
     "tags": ["fomo", "forecasting", "time-series"]
 }

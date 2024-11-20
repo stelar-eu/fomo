@@ -25,7 +25,7 @@ class Parameters:
     output_path: str = None
     minio_id: str = None
     minio_key: str = None
-    minio_skey: str = None
+    minio_token: str = None
     minio_url: str = None
 
     # Optional attributes
@@ -45,7 +45,7 @@ class Parameters:
     save_logs: bool = True  # If True the logging will be printed to the console, else it will be saved to a file in the output directory
 
     # Inferred attributes
-    output_dir: str = None
+    local_output_dir: str = None
     minio_client: MinioClient = None
 
     # Statistics
@@ -80,7 +80,7 @@ class Parameters:
         output_dir = f"output/{int(time.time())}"
         os.makedirs(output_dir, exist_ok=True)
         print(f"Saving the run output to {output_dir}")
-        Parameters.output_dir = output_dir
+        Parameters.local_output_dir = output_dir
 
         # Setup logger
         FORMAT = '%(asctime)s.%(msecs)03d - [%(levelname)s] %(message)s'
@@ -97,7 +97,7 @@ class Parameters:
             # logging.getLogger().removeHandler(logging.getLogger().handlers[0])
 
         # Initialize the MinIO client
-        Parameters.minio_client = MinioClient(Parameters.minio_url, Parameters.minio_id, Parameters.minio_key, Parameters.minio_skey)
+        Parameters.minio_client = MinioClient(Parameters.minio_url, Parameters.minio_id, Parameters.minio_key, Parameters.minio_token)
 
     @staticmethod
     def get_rmses(df, gb: str = 'stream_name'):
@@ -167,10 +167,10 @@ class Parameters:
     @staticmethod
     def save():
         #         Save the predictions
-        Parameters.forecast_history.to_csv(f"{Parameters.output_dir}/predictions.csv", index=False)
+        Parameters.forecast_history.to_csv(f"{Parameters.local_output_dir}/predictions.csv", index=False)
 
         # Upload the predictions and logs to MinIO
-        Parameters.minio_client.put_object(f"{Parameters.output_path}/predictions.csv", f"{Parameters.output_dir}/predictions.csv")
+        Parameters.minio_client.put_object(f"{Parameters.output_path}/predictions.csv", f"{Parameters.local_output_dir}/predictions.csv")
 
         if Parameters.save_logs:
-            Parameters.minio_client.put_object(f"{Parameters.output_path}/log.txt", f"{Parameters.output_dir}/log.txt")       
+            Parameters.minio_client.put_object(f"{Parameters.output_path}/log.txt", f"{Parameters.local_output_dir}/log.txt")       

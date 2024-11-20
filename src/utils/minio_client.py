@@ -57,6 +57,7 @@ class MinioClient:
         Returns:
             dict: A success message or an error dictionary if upload fails.
         """
+        object_path = object_path.replace("s3://", "")
         try:
             if not os.path.isfile(file_path):
                 return {"error": f"The specified file does not exist: {file_path}"}
@@ -95,6 +96,7 @@ class MinioClient:
         Returns:
             dict: A success message or an error dictionary if download fails.
         """
+        object_path = object_path.replace("s3://", "")
         try:
             # Split object_path into bucket and object name
             bucket_name, object_name = object_path.split('/', 1)

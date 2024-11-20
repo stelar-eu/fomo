@@ -2,17 +2,13 @@
     "message": "Stream simulation completed successfully!",
     "output": [
         {
-            "path": "agroknow/A2/output/test",
+            "path": "s3://klms-bucket/fomo-test",
             "name": "Directory containing the output files"
         }
     ],
     "metrics": {
-        "input_path": "agroknow/A2/monthly.csv",
-        "output_path": "agroknow/A2/output/test",
-        "minio_id": "b7qqc9p1JpKRY7Z7GYXA",
-        "minio_key": "xu9gwGYDFYbdDKHKR3bI5N4SSOsT9OlrnHcFOFKH",
-        "minio_skey": null,
-        "minio_url": "https://api-s3-ak.stelar.gr",
+        "input_path": "s3://klms-bucket/monthly.csv",
+        "output_path": "s3://klms-bucket/fomo-test",
         "loglevel": 20,
         "window": 100,
         "budget": 20,
@@ -27,7 +23,7 @@
         "index": true,
         "header": true,
         "save_logs": true,
-        "output_dir": "output/1731672530",
+        "local_output_dir": "output/1732114813",
         "mean_rmse": 2.190932922282574,
         "mean_smape": 101.66666666666667
     },

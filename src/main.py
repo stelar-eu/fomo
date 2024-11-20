@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from methods.fomo import FOMO
-from src.parameters import Parameters as p, Stat
+from parameters import Parameters as p, Stat
 import utils.minio_client as mc
 
 # # Set up argument parser
@@ -190,13 +190,15 @@ def run():
     #     Save the statistics and parameters
     p.save()
 
+    metrics = {k:v for k,v in p.get_attributes([str, int, bool, float, Stat]).items() if not k.startswith("minio")}
+
     return {
         "message": "Stream simulation completed successfully!",
         "output": [{
             "path": p.output_path,
             "name": "Directory containing the output files"
         }],
-        "metrics": p.get_attributes([str, int, bool, float, Stat]),
+        "metrics": metrics,
         "status": 200
     }
 
@@ -246,8 +248,8 @@ if __name__ == "__main__":
     if len(sys.argv) == 1: # Test run
         sys.argv = [
             'main.py',
-            'resources/input.json',
-            'resources/output.json'
+            'src/resources/input.json',
+            'src/resources/output.json'
         ]
     elif len(sys.argv) != 3:
         raise ValueError("Please provide 2 files.")
@@ -258,13 +260,15 @@ if __name__ == "__main__":
     with open(input_json_path) as o:
         input_json = json.load(o)
 
+    print(f"Input json: {input_json}")
+
     # Parse the input json
     try:
-        p.input_path = input_json['input'][0]['path']
+        p.input_path = input_json['input'][0]
         p.output_path = input_json['parameters']['output_path']
         p.minio_id = input_json['minio']['id']
         p.minio_key = input_json['minio']['key']
-        p.minio_skey = input_json['minio'].get('secret_key', None)
+        p.minio_token = input_json['minio'].get('skey', None)
         p.minio_url = input_json['minio']['endpoint_url']
     except KeyError as e:
         raise ValueError(f"Missing key in input json: {e}")
@@ -280,3 +284,5 @@ if __name__ == "__main__":
     response = run()
     with open(sys.argv[2], 'w') as o:
         o.write(json.dumps(response, indent=4))
+
+    print(f"Output json: {response}")

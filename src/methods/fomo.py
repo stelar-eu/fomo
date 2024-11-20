@@ -6,7 +6,7 @@ from typing import List, Tuple
 from methods.distance_function import *
 from methods.model import Model
 from methods.odac_cluster import OdacCluster
-from src.parameters import Parameters as p
+from parameters import Parameters as p
 
 
 @dataclass
