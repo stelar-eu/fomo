@@ -23,6 +23,7 @@ class Parameters:
     # Required attributes (to be set)
     input_path: str = None
     output_path: str = None
+    log_path: str = None
     minio_id: str = None
     minio_key: str = None
     minio_token: str = None
@@ -87,17 +88,14 @@ class Parameters:
         logging.basicConfig(format=FORMAT, datefmt='%d/%m/%Y %H:%M:%S')
         logging.getLogger().setLevel(Parameters.loglevel)
 
-        if Parameters.save_logs:
+        if Parameters.log_path is not None:
             log_path = os.path.join(output_dir, "log.txt")
             file_handler = logging.FileHandler(log_path)
             file_handler.setFormatter(logging.Formatter(FORMAT))
             logging.getLogger().addHandler(file_handler)
 
-            #         Remove printing to the console
-            # logging.getLogger().removeHandler(logging.getLogger().handlers[0])
-
         # Initialize the MinIO client
-        Parameters.minio_client = MinioClient(Parameters.minio_url, Parameters.minio_id, Parameters.minio_key, Parameters.minio_token)
+        Parameters.minio_client = MinioClient(Parameters.minio_url, Parameters.minio_id, Parameters.minio_key, session_token=Parameters.minio_token)
 
     @staticmethod
     def get_rmses(df, gb: str = 'stream_name'):
@@ -134,9 +132,9 @@ class Parameters:
         Print the parameters
         """
         paramdict = Parameters.get_attributes(allowed_types=[int, float, str, bool])
-
+        paramdict = {k: v for k, v in paramdict.items() if not k.startswith("minio_")}
         lib.print_line()
-        logging.info(f"Parameters:")
+        logging.info("Parameters:")
         lib.printdict(paramdict)
         lib.print_line()
 
@@ -160,7 +158,7 @@ class Parameters:
         """
         statdict = Parameters.get_attributes(allowed_types=[Stat])
         lib.print_line()
-        logging.info(f"Run statistics:")
+        logging.info("Run statistics:")
         lib.printdict(statdict)
         lib.print_line()
 
@@ -170,7 +168,7 @@ class Parameters:
         Parameters.forecast_history.to_csv(f"{Parameters.local_output_dir}/predictions.csv", index=False)
 
         # Upload the predictions and logs to MinIO
-        Parameters.minio_client.put_object(f"{Parameters.output_path}/predictions.csv", f"{Parameters.local_output_dir}/predictions.csv")
+        Parameters.minio_client.put_object(s3_path=Parameters.output_path, file_path=f"{Parameters.local_output_dir}/predictions.csv")
 
         if Parameters.save_logs:
-            Parameters.minio_client.put_object(f"{Parameters.output_path}/log.txt", f"{Parameters.local_output_dir}/log.txt")       
+            Parameters.minio_client.put_object(s3_path=Parameters.log_path, file_path=f"{Parameters.local_output_dir}/log.txt")       

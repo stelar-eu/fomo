@@ -1,6 +1,6 @@
 
 DOCKER=docker
-IMGTAG=alexdarancio7/fomo:latest
+IMGTAG=img.stelar.gr/stelar/fomo:latest
 IMGPATH=.
 DOCKERFILE=$(IMGPATH)/Dockerfile
 

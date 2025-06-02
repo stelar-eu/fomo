@@ -51,7 +51,7 @@ def get_data() -> pd.DataFrame:
     tmp_path = "/tmp/data.csv"
 
     # First download the data from MinIO to a temporary location
-    response = p.minio_client.get_object(p.input_path, tmp_path)
+    response = p.minio_client.get_object(s3_path=p.input_path, local_path=tmp_path)
 
     if 'error' in response:
         logging.error(f"Error while downloading data: {response['message']}")
@@ -169,7 +169,6 @@ def run():
     """
     Main function; simulate a stream and continuously maintain a cluster tree
     """
-
     # Print the parameters
     p.print_params()
 
@@ -194,13 +193,14 @@ def run():
 
     return {
         "message": "Stream simulation completed successfully!",
-        "output": [{
-            "path": p.output_path,
-            "name": "Directory containing the output files"
-        }],
+        "output": {
+            "predictions": p.output_path,
+            "log": p.log_path if p.log_path else None
+        },
         "metrics": metrics,
         "status": 200
     }
+
 
 
 """
@@ -260,12 +260,14 @@ if __name__ == "__main__":
     with open(input_json_path) as o:
         input_json = json.load(o)
 
-    print(f"Input json: {input_json}")
+    #Credentials exposure!!!!
+    #print(f"Input json: {input_json}")
 
     # Parse the input json
     try:
-        p.input_path = input_json['input'][0]
-        p.output_path = input_json['parameters']['output_path']
+        p.input_path = input_json['input']['stream'][0]
+        p.output_path = input_json['output']['predictions']
+        p.log_path = input_json['output']['log'] if 'log' in input_json['output'] else None
         p.minio_id = input_json['minio']['id']
         p.minio_key = input_json['minio']['key']
         p.minio_token = input_json['minio'].get('skey', None)
@@ -274,8 +276,6 @@ if __name__ == "__main__":
         raise ValueError(f"Missing key in input json: {e}")
     
     for key, value in input_json['parameters'].items():
-        if key == 'output_path':
-            continue
         setattr(p, key, value)
 
     # Check the parameters

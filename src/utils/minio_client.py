@@ -8,62 +8,102 @@ Project Info: https://stelar-project.eu/
 """
 
 from minio import Minio
-import traceback
-from minio.error import S3Error, InvalidResponseError
-import traceback
 import os
-from dataclasses import dataclass
-
-@dataclass
+import re
 class MinioClient:
-    minio_url: str
-    access_id: str
-    secret_key: str
-    stoken: str = None
-
-    client: Minio = None
-
-    def __post_init__(self):
-        self.init_client()
-
-    def init_client(self):
+    def __init__(self, endpoint, access_key, secret_key, secure=True, session_token=None):
         """
-        Instantiates and initializes a MinIO client with the given credentials and attributes.
-        Args:
-            minio_url (str): The URL for the MinIO server.
-            access_id (str): Access key ID for MinIO.
-            secret_key (str): Secret key for MinIO.
-            stoken (str, optional): Session token, if required.
-            secure (bool, optional): Whether to use HTTPS. Default is True.
-        Returns:
-            Minio: A MinIO client instance, or an error dictionary if initialization fails.
+        Initialize a new instance of the MinIO client.
+        Parameters:
+            endpoint (str): The MinIO server endpoint, including host and port (e.g., "minio.stelar.gr").
+            access_key (str): The access key for authenticating with the MinIO server.
+            secret_key (str): The secret key associated with the provided access key for authentication.
+            secure (bool, optional): Indicates whether to use HTTPS (True) or HTTP (False). Defaults to True.
+            session_token (str, optional): An optional session token for temporary credentials. Defaults to None.
         """
-        sanitized_url = self.minio_url.replace("http://", "").replace("https://", "")
+        # Exclude any "http://" or "https://" prefix from the endpoint
+        endpoint = re.sub(r"^https?://", "", endpoint)
+        self.client = Minio(
+            endpoint,
+            access_key=access_key,
+            secret_key=secret_key,
+            secure=secure,
+            session_token=session_token
+        )
+
+    def _parse_s3_path(self, s3_path):
+        """
+        Parse an S3 path.
+
+        Accepts:
+         - "s3://bucket/object/name"
+         - "bucket/object/name"
+        
+        :param s3_path: The S3 path to parse.
+        :return: A tuple (bucket, object_name).
+        """
+        if s3_path.startswith("s3://"):
+            path = s3_path[5:]
+        else:
+            path = s3_path
+        parts = path.split("/", 1)
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            raise ValueError("Invalid path. Expected format 's3://bucket/object/name' or 'bucket/object/name'.")
+        return parts[0], parts[1]
+
+    def get_object(self, bucket_name=None, object_name=None, s3_path=None, local_path=None):
+        """
+        Retrieve an object.
+        Usage: Either pass bucket_name and object_name or s3_path.
+        If local_path is provided, the object will be saved to that file.
+        
+        :param bucket_name: Name of the bucket.
+        :param object_name: Name of the object.
+        :param s3_path: S3-style path (e.g., "s3://bucket/object/name" or "bucket/object/name").
+        :param local_path: Optional local file path to save the object.
+        :return: The object data in bytes (if local_path is not provided)
+                 or a success message (if saved to file).
+        """
+        if s3_path:
+            bucket_name, object_name = self._parse_s3_path(s3_path)
+        elif not (bucket_name and object_name):
+            raise ValueError("Bucket name and object name must be provided if s3_path is not used.")
+
+        response = self.client.get_object(bucket_name, object_name)
         try:
-            self.client = Minio(sanitized_url, access_key=self.access_id, secret_key=self.secret_key, session_token=self.stoken, secure=True)
-        except Exception as e:
-            return {
-                "error": "Could not initialize MinIO client",
-                "message": str(e)
-            }
-    
-    def put_object(self, object_path: str, file_path: str):
+            if local_path:
+                with open(local_path, 'wb') as file_data:
+                    for d in response.stream(32 * 1024):
+                        file_data.write(d)
+                return {"message": f"Object '{object_name}' successfully downloaded to '{local_path}'."}
+            else:
+                return response.read()
+        finally:
+            response.close()
+            response.release_conn()
+
+    def put_object(self, bucket_name=None, object_name=None, s3_path=None, file_path=None, data=None, length=None):
         """
-        Uploads an object to the specified bucket using a combined object path.
-        Args:
-            object_path (str): The full path to the bucket and object in the format "bucket_name/object_name".
-            file_path (str): Path to the local file to be uploaded.
-            mclient (Minio): The Minio client
-        Returns:
-            dict: A success message or an error dictionary if upload fails.
+        Upload an object.
+        Usage: Either pass bucket_name and object_name or s3_path.
+        Provide a local file (file_path) or raw data (data and length) to upload.
+        
+        :param bucket_name: Target bucket name.
+        :param object_name: Target object name.
+        :param s3_path: S3-style path (e.g., "s3://bucket/object/name" or "bucket/object/name").
+        :param file_path: Path to the local file to be uploaded.
+        :param data: Binary file-like object to be uploaded.
+        :param length: Length of the data.
+        :return: A success message.
         """
-        object_path = object_path.replace("s3://", "")
-        try:
+        if s3_path:
+            bucket_name, object_name = self._parse_s3_path(s3_path)
+        elif not (bucket_name and object_name):
+            raise ValueError("Bucket name and object name must be provided if s3_path is not used.")
+
+        if file_path:
             if not os.path.isfile(file_path):
-                return {"error": f"The specified file does not exist: {file_path}"}
-            
-            # Split object_path into bucket and object name
-            bucket_name, object_name = object_path.split('/', 1)
+                raise FileNotFoundError(f"File not found: {file_path}")
             file_stat = os.stat(file_path)
             with open(file_path, 'rb') as file_data:
                 self.client.put_object(
@@ -73,52 +113,13 @@ class MinioClient:
                     length=file_stat.st_size
                 )
             return {"message": f"Object '{object_name}' successfully uploaded to bucket '{bucket_name}'."}
-
-        except (S3Error, InvalidResponseError) as e:
-            return {
-                "error": "Could not upload the object to MinIO",
-                "message": str(e),
-                "traceback": traceback.format_exc()
-            }
-        except Exception as e:
-            return {
-                "error": "An unexpected error occurred while uploading the object",
-                "message": str(e),
-                "traceback": traceback.format_exc()
-            }
-    
-    def get_object(self, object_path: str, file_path: str):
-        """
-        Downloads an object from the specified bucket using a combined object path.
-        Args:
-            object_path (str): The full path to the bucket and object in the format "bucket_name/object_name".
-            file_path (str): The local path where the downloaded object should be saved.
-        Returns:
-            dict: A success message or an error dictionary if download fails.
-        """
-        object_path = object_path.replace("s3://", "")
-        try:
-            # Split object_path into bucket and object name
-            bucket_name, object_name = object_path.split('/', 1)
-    
-            response = self.client.get_object(bucket_name, object_name)
-            with open(file_path, 'wb') as file_data:
-                for d in response.stream(32 * 1024):
-                    file_data.write(d)
-            response.close()
-            response.release_conn()
-            
-            return {"message": f"Object '{object_name}' successfully downloaded from bucket '{bucket_name}' to '{file_path}'."}
-
-        except (S3Error, InvalidResponseError) as e:
-            return {
-                "error": "Could not download the object from MinIO",
-                "message": str(e),
-                "traceback": traceback.format_exc()
-            }
-        except Exception as e:
-            return {
-                "error": "An unexpected error occurred while downloading the object",
-                "message": str(e),
-                "traceback": traceback.format_exc()
-            }
+        elif data is not None and length is not None:
+            self.client.put_object(
+                bucket_name=bucket_name,
+                object_name=object_name,
+                data=data,
+                length=length
+            )
+            return {"message": f"Object '{object_name}' successfully uploaded to bucket '{bucket_name}'."}
+        else:
+            raise ValueError("Either file_path or both data and length must be provided.")
